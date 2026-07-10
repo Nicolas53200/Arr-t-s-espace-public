@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Edit2 } from "lucide-react";
+import { Plus, Search, Edit2, Download } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { filtrerArretes, genNum } from "@/lib/arrete";
 import { AUJOURD_HUI } from "@/config/constants";
@@ -8,6 +8,7 @@ import ArreteLigne from "@/components/arretes/ArreteLigne";
 import EmptyState from "@/components/common/EmptyState";
 import ModalConfirm from "@/components/arretes/ModalConfirm";
 import ModalAbrogation from "@/components/arretes/ModalAbrogation";
+import { exportArretesCSV, telechargerCSV } from "@/lib/export";
 import type { Arrete } from "@/types";
 
 export default function ActifsPage() {
@@ -33,7 +34,10 @@ export default function ActifsPage() {
           <h2 className="fd" style={{ fontSize: 22, margin: "0 0 2px" }}>Arrêtés actifs</h2>
           <p style={{ color: "#6B6A60", fontSize: 13, margin: 0 }}>{actifs.length} en cours</p>
         </div>
-        <button className="btn-primary" onClick={() => navigate("/nouveau")}><Plus size={13} />Nouvel arrêté</button>
+        <div style={{ display: "flex", gap: 7 }}>
+          <button className="btn-secondary" onClick={() => telechargerCSV(exportArretesCSV(liste), "arretes-actifs.csv")} style={{ fontSize: 12 }}><Download size={13} />CSV</button>
+          <button className="btn-primary" onClick={() => navigate("/nouveau")}><Plus size={13} />Nouvel arrêté</button>
+        </div>
       </div>
       <div style={{ position: "relative", marginBottom: 14 }}>
         <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#A6A399" }} />

@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { AuthenticatedRequest } from "../types.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { ARRETES_INITIAUX } from "../../src/data/arretes.mock.js";
-import type { Arrete } from "../../src/types/domain.js";
+import type { Arrete, StatutArrete, Commentaire } from "../../src/types/domain.js";
 
 const router = Router();
 
@@ -262,6 +262,148 @@ router.post(
         success: false,
         error: "Erreur interne du serveur",
       });
+    }
+  }
+);
+
+/**
+ * PATCH /api/arretes/:id/transition
+ * Transition de statut d'un arrêté dans le workflow de validation.
+ * Body : { nouveauStatut: StatutArrete, commentaire?: string, auteur: string }
+ */
+const TRANSITIONS_VALIDES: Record<StatutArrete, StatutArrete[]> = {
+  brouillon: ["en_relecture"],
+  en_relecture: ["valide", "brouillon"],
+  valide: ["publie"],
+  publie: ["modifie", "abroge"],
+  modifie: ["publie"],
+  abroge: [],
+};
+
+router.patch(
+  "/:id/transition",
+  requireAuth,
+  requireRole("redacteur"),
+  (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const index = arretes.findIndex((a) => a.id === req.params.id);
+
+      if (index === -1) {
+        res.status(404).json({
+          data: null,
+          success: false,
+          error: "Arrêté non trouvé",
+        });
+        return;
+      }
+
+      const existing = arretes[index]!;
+      const { nouveauStatut, commentaire, auteur } = req.body as {
+        nouveauStatut: StatutArrete;
+        commentaire?: string;
+        auteur: string;
+      };
+
+      if (!nouveauStatut || !auteur) {
+        res.status(400).json({
+          data: null,
+          success: false,
+          error: "nouveauStatut et auteur sont requis",
+        });
+        return;
+      }
+
+      const transitionsPermises = TRANSITIONS_VALIDES[existing.statut];
+      if (!transitionsPermises || !transitionsPermises.includes(nouveauStatut)) {
+        res.status(400).json({
+          data: null,
+          success: false,
+          error: `Transition de "${existing.statut}" vers "${nouveauStatut}" non autorisée`,
+        });
+        return;
+      }
+
+      const commentaires: Commentaire[] = [...(existing.commentaires ?? [])];
+      if (commentaire) {
+        commentaires.push({
+          id: uuidv4(),
+          auteur,
+          date: new Date().toISOString(),
+          texte: commentaire,
+          etape: nouveauStatut,
+        });
+      }
+
+      const arreteMisAJour: Arrete = {
+        ...existing,
+        statut: nouveauStatut,
+        commentaires,
+        ...(nouveauStatut === "valide" ? {
+          valideur: auteur,
+          date_validation: new Date().toISOString().slice(0, 10),
+        } : {}),
+      };
+
+      arretes[index] = arreteMisAJour;
+
+      res.json({
+        data: arreteMisAJour,
+        success: true,
+      });
+    } catch (err) {
+      console.error("Erreur lors de la transition :", err);
+      res.status(500).json({
+        data: null,
+        success: false,
+        error: "Erreur interne du serveur",
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/arretes/export/csv
+ * Export CSV de tous les arretes.
+ */
+router.get(
+  "/export/csv",
+  requireAuth,
+  (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { statut, type_code } = req.query as {
+        statut?: string;
+        type_code?: string;
+      };
+
+      let resultat = [...arretes];
+
+      if (statut) {
+        resultat = resultat.filter((a) => a.statut === statut);
+      }
+
+      if (type_code) {
+        resultat = resultat.filter((a) => a.type_code === type_code);
+      }
+
+      const escape = (v: string) =>
+        v.includes(",") || v.includes('"') || v.includes("\n")
+          ? `"${v.replace(/"/g, '""')}"`
+          : v;
+      const row = (cols: string[]) => cols.map(escape).join(",");
+
+      const header = row(["Numero", "Titre", "Type", "Statut", "Date", "Voies concernees", "Date debut", "Date fin"]);
+      const lines = resultat.map((a) =>
+        row([a.numero, a.titre, a.type_label, a.statut, a.date_creation, a.voies.join(" ; "), a.date_debut, a.date_fin])
+      );
+
+      const csv = [header, ...lines].join("\n");
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="arretes.csv"');
+      res.send("﻿" + csv);
+    } catch (err) {
+      console.error("Erreur export CSV arretes :", err);
+      res.status(500).json({ data: null, success: false, error: "Erreur interne du serveur" });
     }
   }
 );

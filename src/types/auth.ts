@@ -11,7 +11,8 @@ export type Permission =
   | "reference:edit"
   | "reference:view"
   | "settings:manage"
-  | "users:manage";
+  | "users:manage"
+  | "admin:manage";
 
 export interface User {
   id: string;

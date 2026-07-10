@@ -5,6 +5,11 @@ export const ROUTES = {
   historique: "/historique",
   nouveau: "/nouveau",
   modifier: (id: string) => `/nouveau/${id}`,
+  validation: "/validation",
   references: "/references",
+  tableauBord: "/tableau-de-bord",
+  notifications: "/notifications",
+  journal: "/journal",
+  admin: "/admin",
   login: "/login",
 } as const;

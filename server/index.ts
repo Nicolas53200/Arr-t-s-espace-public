@@ -6,6 +6,9 @@ import { extractTenant } from "./middleware/tenant.js";
 import authRoutes from "./routes/auth.js";
 import arretesRoutes from "./routes/arretes.js";
 import referencesRoutes from "./routes/references.js";
+import notificationsRoutes from "./routes/notifications.js";
+import auditRoutes from "./routes/audit.js";
+import adminRoutes from "./routes/admin.js";
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
@@ -34,6 +37,9 @@ app.use("/api", extractTenant);
 // --- Routes métier (tenant-scoped) ---
 app.use("/api/arretes", arretesRoutes);
 app.use("/api/references", referencesRoutes);
+app.use("/api/notifications", notificationsRoutes);
+app.use("/api/audit", auditRoutes);
+app.use("/api/admin", adminRoutes);
 
 // --- Gestion des routes non trouvées ---
 app.use((_req, res) => {

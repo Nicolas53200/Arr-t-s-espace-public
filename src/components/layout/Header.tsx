@@ -1,9 +1,10 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { Building2, Home, CheckCircle2, Map, History, BookOpen } from "lucide-react";
+import { Building2, Home, CheckCircle2, Map, History, BookOpen, ClipboardCheck, BarChart3, ScrollText, Settings } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import { AUJOURD_HUI } from "@/config/constants";
 
 export default function Header() {
@@ -11,7 +12,7 @@ export default function Header() {
   const location = useLocation();
   const { tenant } = useTenant();
   const { user } = useAuth();
-  const { actifs } = useArretes();
+  const { actifs, arretes } = useArretes();
   const { references } = useReferences();
 
   const alertes = references.filter((r) => {
@@ -42,14 +43,24 @@ export default function Header() {
           </button>
           <button onClick={() => navigate("/carte")} className={`nav-link${location.pathname === "/carte" ? " active" : ""}`}><Map size={13} />Carte</button>
           <button onClick={() => navigate("/historique")} className={`nav-link${location.pathname === "/historique" ? " active" : ""}`}><History size={13} />Historique</button>
+          <button onClick={() => navigate("/validation")} className={`nav-link${location.pathname === "/validation" ? " active" : ""}`}>
+            <ClipboardCheck size={13} />Validation
+            {arretes.filter((a) => a.statut === "en_relecture" || a.statut === "valide").length > 0 && <span style={{ background: "#92400E", color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 6px", fontFamily: "'IBM Plex Mono',monospace" }}>{arretes.filter((a) => a.statut === "en_relecture" || a.statut === "valide").length}</span>}
+          </button>
           <button onClick={() => navigate("/references")} className={`nav-link${location.pathname === "/references" ? " active" : ""}`} style={{ position: "relative" }}>
             <BookOpen size={13} />References
             {alertes.length > 0 && <span style={{ position: "absolute", top: 2, right: 2, width: 6, height: 6, borderRadius: "50%", background: "#D9730D" }} />}
           </button>
+          <button onClick={() => navigate("/tableau-de-bord")} className={`nav-link${location.pathname === "/tableau-de-bord" ? " active" : ""}`}><BarChart3 size={13} />Tableau de bord</button>
+          <button onClick={() => navigate("/journal")} className={`nav-link${location.pathname === "/journal" ? " active" : ""}`}><ScrollText size={13} />Journal</button>
+          {user?.role === "admin" && <button onClick={() => navigate("/admin")} className={`nav-link${location.pathname === "/admin" ? " active" : ""}`}><Settings size={13} />Admin</button>}
         </nav>
-        <div style={{ fontSize: 11, color: "#6B6A60", fontFamily: "'IBM Plex Mono',monospace", textAlign: "right" }}>
-          <p style={{ margin: 0 }}>{user?.nom ?? ""}</p>
-          <p style={{ margin: 0, fontSize: 10 }}>{AUJOURD_HUI.toLocaleDateString("fr-FR")}</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <NotificationBell />
+          <div style={{ fontSize: 11, color: "#6B6A60", fontFamily: "'IBM Plex Mono',monospace", textAlign: "right" }}>
+            <p style={{ margin: 0 }}>{user?.nom ?? ""}</p>
+            <p style={{ margin: 0, fontSize: 10 }}>{AUJOURD_HUI.toLocaleDateString("fr-FR")}</p>
+          </div>
         </div>
       </div>
     </header>

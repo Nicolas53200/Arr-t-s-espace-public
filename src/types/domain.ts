@@ -1,7 +1,15 @@
 // Types du domaine métier — Arrêtés & Espace public
 // Chaque type reflète une entité métier identifiée dans le prototype.
 
-export type StatutArrete = "brouillon" | "publie" | "modifie" | "abroge";
+export type StatutArrete = "brouillon" | "en_relecture" | "valide" | "publie" | "modifie" | "abroge";
+
+export interface Commentaire {
+  id: string;
+  auteur: string;
+  date: string;
+  texte: string;
+  etape: StatutArrete;
+}
 
 export type CodeImpact =
   | "circulation_interdite"
@@ -70,6 +78,9 @@ export interface Arrete {
   troncons: Troncon[];
   versions: VersionArrete[];
   arrete_abrogation: AbrogationArrete | null;
+  commentaires?: Commentaire[];
+  valideur?: string;
+  date_validation?: string;
 }
 
 export interface Voie {

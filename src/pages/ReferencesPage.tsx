@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Plus, Shield, MapPin, Archive, CheckCircle2, AlertCircle, History, ChevronUp, ChevronDown, Clock, RefreshCw, X, Check } from "lucide-react";
+import { Plus, Shield, MapPin, Archive, CheckCircle2, AlertCircle, History, ChevronUp, ChevronDown, Clock, RefreshCw, X, Check, Download } from "lucide-react";
 import { useReferences } from "@/contexts/ReferencesContext";
 import { AUJOURD_HUI } from "@/config/constants";
 import { CATEGORIES_REF } from "@/data/references.mock";
 import { fmtDate } from "@/lib/date";
 import Modal from "@/components/common/Modal";
+import { exportReferencesCSV, telechargerCSV } from "@/lib/export";
 import type { Reference, CategorieReference } from "@/types";
 
 interface RefEdition {
@@ -70,7 +71,10 @@ export default function ReferencesPage() {
           <h2 className="fd" style={{ fontSize: 22, margin: "0 0 2px" }}>Références permanentes</h2>
           <p style={{ color: "#6B6A60", fontSize: 13, margin: 0 }}>Insérées automatiquement dans les visas.</p>
         </div>
-        <button className="btn-primary" onClick={() => setRefEnEdition({ mode: "new", code: "", cat: catRefActive, label: "", titulaire: "", numero: "", date: "", date_debut_validite: "", date_fin_validite: "" })} style={{ fontSize: 12 }}><Plus size={13} />Nouvelle</button>
+        <div style={{ display: "flex", gap: 7 }}>
+          <button className="btn-secondary" onClick={() => telechargerCSV(exportReferencesCSV(references), "references.csv")} style={{ fontSize: 12 }}><Download size={13} />CSV</button>
+          <button className="btn-primary" onClick={() => setRefEnEdition({ mode: "new", code: "", cat: catRefActive, label: "", titulaire: "", numero: "", date: "", date_debut_validite: "", date_fin_validite: "" })} style={{ fontSize: 12 }}><Plus size={13} />Nouvelle</button>
+        </div>
       </div>
 
       {alertes.length > 0 && (

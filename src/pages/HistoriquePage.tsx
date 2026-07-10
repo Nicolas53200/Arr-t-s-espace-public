@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Search, Settings } from "lucide-react";
+import { Search, Settings, Download } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { filtrerArretes } from "@/lib/arrete";
 import { DUREE_CONSERVATION_ANS } from "@/config/constants";
 import ArreteLigne from "@/components/arretes/ArreteLigne";
 import EmptyState from "@/components/common/EmptyState";
+import { exportArretesCSV, telechargerCSV } from "@/lib/export";
 
 export default function HistoriquePage() {
   const { historique } = useArretes();
@@ -19,8 +20,11 @@ export default function HistoriquePage() {
           <h2 className="fd" style={{ fontSize: 22, margin: "0 0 2px" }}>Historique</h2>
           <p style={{ color: "#6B6A60", fontSize: 13, margin: 0 }}>{historique.length} archivés · Conservation : {DUREE_CONSERVATION_ANS} ans</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#F4F2EC", borderRadius: 6, padding: "5px 11px", fontSize: 12, color: "#6B6A60" }}>
-          <Settings size={12} />Durée : <strong>{DUREE_CONSERVATION_ANS} ans</strong>
+        <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+          <button className="btn-secondary" onClick={() => telechargerCSV(exportArretesCSV(liste), "arretes-historique.csv")} style={{ fontSize: 12 }}><Download size={13} />CSV</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#F4F2EC", borderRadius: 6, padding: "5px 11px", fontSize: 12, color: "#6B6A60" }}>
+            <Settings size={12} />Durée : <strong>{DUREE_CONSERVATION_ANS} ans</strong>
+          </div>
         </div>
       </div>
       <div style={{ position: "relative", marginBottom: 14 }}>

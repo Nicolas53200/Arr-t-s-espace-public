@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { CheckCircle2, AlertOctagon, GitBranch, Archive, ChevronUp, ChevronDown, Edit2, Trash2 } from "lucide-react";
-import { STATUT_UI } from "@/config/theme";
 import { estExpire } from "@/lib/arrete";
 import { fmtDate } from "@/lib/date";
+import { couleurStatut, labelStatut } from "@/lib/workflow";
 import type { Arrete } from "@/types";
 
 interface ArreteLigneProps {
@@ -15,7 +15,8 @@ interface ArreteLigneProps {
 
 export default function ArreteLigne({ arrete, onModifier, onAbroger, compact, archive }: ArreteLigneProps) {
   const [ouvert, setOuvert] = useState(false);
-  const statut = STATUT_UI[arrete.statut] || STATUT_UI.publie;
+  const statutCouleurs = couleurStatut(arrete.statut);
+  const statutLabel = labelStatut(arrete.statut);
   const expire = estExpire(arrete);
   const peutModifier = !archive && arrete.statut !== "abroge";
   return (
@@ -23,8 +24,8 @@ export default function ArreteLigne({ arrete, onModifier, onAbroger, compact, ar
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 20, fontSize: 10, fontWeight: 600, background: statut.bg, color: statut.color, whiteSpace: "nowrap" }}>
-              {arrete.statut === "publie" && <CheckCircle2 size={9} />}{arrete.statut === "abroge" && <AlertOctagon size={9} />}{arrete.statut === "modifie" && <GitBranch size={9} />}{statut.label}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 20, fontSize: 10, fontWeight: 600, background: statutCouleurs.bg, color: statutCouleurs.text, whiteSpace: "nowrap" }}>
+              {arrete.statut === "publie" && <CheckCircle2 size={9} />}{arrete.statut === "abroge" && <AlertOctagon size={9} />}{arrete.statut === "modifie" && <GitBranch size={9} />}{statutLabel}
             </span>
             {expire && arrete.statut !== "abroge" && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 20, fontSize: 10, fontWeight: 600, background: "#F3F4F6", color: "#6B7280", whiteSpace: "nowrap" }}><Archive size={9} />Archivé auto.</span>}
             <span className="fm" style={{ fontSize: 10, color: "#6B6A60" }}>{arrete.numero}</span>
