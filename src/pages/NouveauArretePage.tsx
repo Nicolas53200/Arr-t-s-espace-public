@@ -224,7 +224,7 @@ export default function NouveauArretePage() {
               {phases.map((ph, i) => <button key={ph.id} onClick={() => setPhaseActive(i)} className={`phase-tab${phaseActive === i ? " active" : ""}`} style={{ padding: "4px 10px", fontSize: 11 }}>{ph.label} · {ph.troncons.length} voie{ph.troncons.length !== 1 ? "s" : ""}</button>)}
             </div>
           )}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 290px", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 290px", gap: 14 }}>
             <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 13 }}>
               <svg viewBox="0 0 360 340" style={{ width: "100%", height: "auto", maxHeight: 420 }}>
                 <rect width="360" height="340" fill="#F4F2EC" />
