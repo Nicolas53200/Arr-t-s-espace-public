@@ -18,6 +18,7 @@ import TableauBordPage from "@/pages/TableauBordPage";
 import JournalPage from "@/pages/JournalPage";
 import AdminPage from "@/pages/AdminPage";
 import "@/styles/global.css";
+import "leaflet/dist/leaflet.css";
 import "@/styles/leaflet-overrides.css";
 
 export default function App() {

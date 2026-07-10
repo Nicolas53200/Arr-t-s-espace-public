@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
+import { useTenant } from "@/contexts/TenantContext";
+import { ouvrirApercuPdf } from "@/lib/pdf-client";
 import { AUJOURD_HUI } from "@/config/constants";
 import { TYPES_ARRETE } from "@/data/types-arrete";
 import { TYPES_IMPACT } from "@/data/types-impact";
@@ -19,7 +21,8 @@ export default function NouveauArretePage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { arretes, dispatch } = useArretes();
-  useReferences();
+  const { references } = useReferences();
+  const { tenant } = useTenant();
 
   const arreteExistant = id ? arretes.find((a) => a.id === id) : null;
   const typeInitial = arreteExistant ? TYPES_ARRETE.find((t) => t.code === arreteExistant.type_code) : null;
@@ -299,9 +302,32 @@ export default function NouveauArretePage() {
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <button className="btn-ghost" onClick={() => setEtape(2)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
-            <button onClick={publierArrete} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "9px 20px", borderRadius: 6, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: arreteExistant ? "#1E3A5F" : "#2F6B4F", color: "#FAFAF7", fontFamily: "'IBM Plex Sans',sans-serif" }}>
-              {arreteExistant ? <><RefreshCw size={12} />Enregistrer</> : <><Check size={12} />Publier</>}
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn-secondary" onClick={() => {
+                const tronconsFlatMap = phases.flatMap((ph) => ph.troncons);
+                const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];
+                const apercu: Arrete = {
+                  id: "apercu",
+                  numero: arreteExistant ? arreteExistant.numero : genNum(typeArrete!.suffixe, nextIdx),
+                  type_code: typeArrete!.code,
+                  type_label: typeArrete!.label,
+                  titre: titreArrete || typeArrete!.label,
+                  statut: "brouillon",
+                  cree_par: "M. Lefèvre",
+                  date_creation: AUJOURD_HUI.toISOString().split("T")[0]!,
+                  date_debut: phases[0]?.date_debut || "",
+                  date_fin: phases[phases.length - 1]?.date_fin || "",
+                  voies: tv,
+                  troncons: tronconsFlatMap,
+                  versions: [],
+                  arrete_abrogation: null,
+                };
+                ouvrirApercuPdf(apercu, references, tenant.nom, tenant.code_postal);
+              }} style={{ fontSize: 12 }}><FileText size={12} />Aperçu PDF</button>
+              <button onClick={publierArrete} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "9px 20px", borderRadius: 6, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: arreteExistant ? "#1E3A5F" : "#2F6B4F", color: "#FAFAF7", fontFamily: "'IBM Plex Sans',sans-serif" }}>
+                {arreteExistant ? <><RefreshCw size={12} />Enregistrer</> : <><Check size={12} />Publier</>}
+              </button>
+            </div>
           </div>
         </div>
       )}

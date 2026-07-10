@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from "uuid";
 import type { AuthenticatedRequest } from "../types.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { ARRETES_INITIAUX } from "../../src/data/arretes.mock.js";
+import { REFS_INITIALES } from "../../src/data/references.mock.js";
+import { genererPdfArrete } from "../services/pdf-arrete.js";
 import type { Arrete, StatutArrete, Commentaire } from "../../src/types/domain.js";
 
 const router = Router();
@@ -81,6 +83,66 @@ router.get("/:id", requireAuth, (req: AuthenticatedRequest, res: Response) => {
     });
   } catch (err) {
     console.error("Erreur lors de la récupération de l'arrêté :", err);
+    res.status(500).json({
+      data: null,
+      success: false,
+      error: "Erreur interne du serveur",
+    });
+  }
+});
+
+/**
+ * GET /api/arretes/:id/pdf
+ * Génère et télécharge le PDF officiel d'un arrêté.
+ */
+router.get("/:id/pdf", requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const arrete = arretes.find((a) => a.id === req.params.id);
+
+    if (!arrete) {
+      res.status(404).json({
+        data: null,
+        success: false,
+        error: "Arrêté non trouvé",
+      });
+      return;
+    }
+
+    const tenant = {
+      nom: req.tenantId ? `Tenant ${req.tenantId}` : "Ville de Saint-Avoye",
+      code_postal: "56000",
+    };
+
+    const references = REFS_INITIALES.filter((r) => r.actif).map((r) => ({
+      label: r.label,
+      numero: r.numero,
+      date: r.date,
+    }));
+
+    const pdfStream = genererPdfArrete(
+      {
+        numero: arrete.numero,
+        titre: arrete.titre,
+        type_label: arrete.type_label,
+        date_creation: arrete.date_creation,
+        date_debut: arrete.date_debut,
+        date_fin: arrete.date_fin,
+        voies: arrete.voies,
+        troncons: arrete.troncons.map((t) => ({ voie_id: t.voie_id, impact: t.impact })),
+        cree_par: arrete.cree_par,
+        statut: arrete.statut,
+      },
+      tenant,
+      references,
+    );
+
+    const safeNumero = arrete.numero.replace(/[^a-zA-Z0-9_-]/g, "_");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="arrete-${safeNumero}.pdf"`);
+
+    pdfStream.pipe(res);
+  } catch (err) {
+    console.error("Erreur lors de la génération du PDF :", err);
     res.status(500).json({
       data: null,
       success: false,
