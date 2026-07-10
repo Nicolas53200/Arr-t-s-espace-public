@@ -11,6 +11,7 @@ import { fmtDate, fmtDateCourte, isFutur, isEnCours } from "@/lib/date";
 import StatCard from "@/components/common/StatCard";
 import CarteLeaflet from "@/components/carte/CarteLeaflet";
 import type { Arrete, CodeTypeArrete } from "@/types";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 export default function CartePage() {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ export default function CartePage() {
   const [arreteSelectionne, setArreteSelectionne] = useState<Arrete | null>(null);
   const [showFuturs, setShowFuturs] = useState(true);
   const [calendrierOuvert, setCalendrierOuvert] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const arretesAffiches = useMemo(() => {
     return actifs.filter((a) => {
@@ -51,8 +53,8 @@ export default function CartePage() {
   }
 
   return (
-    <div style={{ padding: "24px 24px 48px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+    <div style={{ padding: isMobile ? "16px 16px 48px" : "24px 24px 48px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 10 : 0 }}>
         <div>
           <h2 className="fd" style={{ fontSize: 22, margin: "0 0 2px" }}>Carte des impacts</h2>
           <p style={{ color: "#6B6A60", fontSize: 13, margin: 0 }}>Vue territoriale des arrêtés actifs en cours et à venir</p>
@@ -81,7 +83,7 @@ export default function CartePage() {
           onClick={() => setShowFuturs((v) => !v)}><Clock size={11} />{showFuturs ? "Futurs visibles" : "Futurs masqués"}</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 18, alignItems: "start" }}>
         <CarteLeaflet
           arretes={arretesAffiches}
           onSelectArrete={setArreteSelectionne}
@@ -164,6 +166,7 @@ function VueCalendrier({ arretes }: { arretes: Arrete[] }) {
   const [moisActuel, setMoisActuel] = useState(new Date(AUJOURD_HUI.getFullYear(), AUJOURD_HUI.getMonth(), 1));
   const [filtreTypes, setFiltreTypes] = useState<Set<string>>(new Set());
   const [arreteSelectionne, setArreteSelectionne] = useState<Arrete | null>(null);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const moisSuivant = () => setMoisActuel((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
   const moisPrecedent = () => setMoisActuel((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
@@ -246,8 +249,8 @@ function VueCalendrier({ arretes }: { arretes: Arrete[] }) {
         })}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18, alignItems: "start" }}>
-        <div style={{ background: "#FFFFFF", border: "1px solid #E4E1D6", borderRadius: 10, padding: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 18, alignItems: "start" }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #E4E1D6", borderRadius: 10, padding: isMobile ? 10 : 20, overflowX: "auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6, marginBottom: 8 }}>
             {JOURS_SEMAINE.map((j) => (
               <div key={j} style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "#A6A399", padding: "4px 0" }}>{j}</div>
