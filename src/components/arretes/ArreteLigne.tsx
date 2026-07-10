@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { CheckCircle2, AlertOctagon, GitBranch, Archive, ChevronUp, ChevronDown, Edit2, Trash2 } from "lucide-react";
+import { CheckCircle2, AlertOctagon, GitBranch, Archive, ChevronUp, ChevronDown, Edit2, Trash2, FileText } from "lucide-react";
 import { estExpire } from "@/lib/arrete";
 import { fmtDate } from "@/lib/date";
 import { couleurStatut, labelStatut } from "@/lib/workflow";
+import { ouvrirApercuPdf } from "@/lib/pdf-client";
+import { useReferences } from "@/contexts/ReferencesContext";
+import { useTenant } from "@/contexts/TenantContext";
 import type { Arrete } from "@/types";
 
 interface ArreteLigneProps {
@@ -15,6 +18,8 @@ interface ArreteLigneProps {
 
 export default function ArreteLigne({ arrete, onModifier, onAbroger, compact, archive }: ArreteLigneProps) {
   const [ouvert, setOuvert] = useState(false);
+  const { references } = useReferences();
+  const { tenant } = useTenant();
   const statutCouleurs = couleurStatut(arrete.statut);
   const statutLabel = labelStatut(arrete.statut);
   const expire = estExpire(arrete);
@@ -39,6 +44,7 @@ export default function ArreteLigne({ arrete, onModifier, onAbroger, compact, ar
         {!compact && (
           <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
             {arrete.versions.length > 0 && <button className="btn-secondary" onClick={() => setOuvert(o => !o)} style={{ padding: "4px 9px", fontSize: 10 }}><GitBranch size={10} />{arrete.versions.length}v {ouvert ? <ChevronUp size={10} /> : <ChevronDown size={10} />}</button>}
+            <button className="btn-secondary" onClick={() => ouvrirApercuPdf(arrete, references, tenant.nom, tenant.code_postal)} style={{ padding: "4px 9px", fontSize: 10 }}><FileText size={10} />PDF</button>
             {peutModifier && <button className="btn-secondary" onClick={onModifier} style={{ padding: "4px 9px", fontSize: 10 }}><Edit2 size={10} />Modifier</button>}
             {peutModifier && <button className="btn-danger" onClick={onAbroger} style={{ padding: "4px 9px", fontSize: 10 }}><Trash2 size={10} />Abroger</button>}
           </div>
