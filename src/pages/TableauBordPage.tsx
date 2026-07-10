@@ -13,6 +13,7 @@ import {
 import BarChart from "@/components/charts/BarChart";
 import DonutChart from "@/components/charts/DonutChart";
 import SparkLine from "@/components/charts/SparkLine";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 const styles = {
   page: {
@@ -135,6 +136,7 @@ function CarteKpi({
 export default function TableauBordPage() {
   const { arretes, actifs, historique } = useArretes();
   const { references } = useReferences();
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const parMois = useMemo(() => arreteParMois(arretes), [arretes]);
   const parType = useMemo(() => arreteParType(arretes), [arretes]);
@@ -221,14 +223,14 @@ export default function TableauBordPage() {
   }, [references]);
 
   return (
-    <div style={styles.page}>
+    <div style={{ ...styles.page, padding: isMobile ? "20px 16px" : "32px 24px" }}>
       <h1 style={styles.titre}>Tableau de bord</h1>
       <p style={styles.sousTitre}>
         Vue d'ensemble de l'activite reglementaire
       </p>
 
       {/* KPI */}
-      <div style={styles.grille}>
+      <div style={{ ...styles.grille, gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(220px, 1fr))" }}>
         <CarteKpi
           label="Arretes actifs"
           valeur={actifs.length}
@@ -254,17 +256,17 @@ export default function TableauBordPage() {
       </div>
 
       {/* Bar chart arretes par mois */}
-      <div style={{ ...styles.carte, marginBottom: 24 }}>
+      <div style={{ ...styles.carte, marginBottom: 24, overflowX: "auto" }}>
         <p style={styles.sectionTitre}>Arretes par mois</p>
         {barData.length > 0 ? (
-          <BarChart data={barData} hauteur={240} largeur={600} />
+          <BarChart data={barData} hauteur={isMobile ? 180 : 240} largeur={isMobile ? 400 : 600} />
         ) : (
           <p style={{ color: "#6B6A60", fontSize: 13 }}>Aucune donnee</p>
         )}
       </div>
 
       {/* Donuts: type + statut */}
-      <div style={styles.deuxColonnes}>
+      <div style={{ ...styles.deuxColonnes, gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(320px, 1fr))" }}>
         <div style={styles.carte}>
           <p style={styles.sectionTitre}>Repartition par type</p>
           <div style={{ display: "flex", justifyContent: "center" }}>

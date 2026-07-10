@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Plus, Shield, MapPin, Archive, CheckCircle2, AlertCircle, History, ChevronUp, ChevronDown, Clock, RefreshCw, X, Check, Download } from "lucide-react";
 import { useReferences } from "@/contexts/ReferencesContext";
+import { useToast } from "@/contexts/ToastContext";
 import { AUJOURD_HUI } from "@/config/constants";
 import { CATEGORIES_REF } from "@/data/references.mock";
 import { fmtDate } from "@/lib/date";
 import Modal from "@/components/common/Modal";
 import { exportReferencesCSV, telechargerCSV } from "@/lib/export";
 import type { Reference, CategorieReference } from "@/types";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface RefEdition {
   mode: "new" | "update";
@@ -26,9 +28,11 @@ const ICON_MAP: Record<string, typeof Shield> = { Shield, MapPin, Archive };
 
 export default function ReferencesPage() {
   const { references, dispatch } = useReferences();
+  const toast = useToast();
   const [catRefActive, setCatRefActive] = useState<CategorieReference>("delegation");
   const [historiquesOuverts, setHistoriquesOuverts] = useState<Set<string>>(new Set());
   const [refEnEdition, setRefEnEdition] = useState<RefEdition | null>(null);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const alertes = references.filter((r) => {
     if (!r.actif || !r.date_fin_validite) return false;
@@ -54,6 +58,7 @@ export default function ReferencesPage() {
       updates: { ...vals, actif: true, historique: [h, ...anc.historique] },
     });
     setRefEnEdition(null);
+    toast.success("Reference mise a jour");
   }
 
   function ajouterRef(nr: Omit<Reference, "id" | "historique">) {
@@ -62,11 +67,12 @@ export default function ReferencesPage() {
       reference: { ...nr, id: `r${Date.now()}`, historique: [] },
     });
     setRefEnEdition(null);
+    toast.success("Reference ajoutee");
   }
 
   return (
-    <div style={{ paddingTop: 24, maxWidth: 1200, margin: "0 auto", padding: "24px 24px 48px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+    <div style={{ paddingTop: 24, maxWidth: 1200, margin: "0 auto", padding: isMobile ? "16px 16px 48px" : "24px 24px 48px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 0 }}>
         <div>
           <h2 className="fd" style={{ fontSize: 22, margin: "0 0 2px" }}>Références permanentes</h2>
           <p style={{ color: "#6B6A60", fontSize: 13, margin: 0 }}>Insérées automatiquement dans les visas.</p>
@@ -87,12 +93,12 @@ export default function ReferencesPage() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "1px solid #E4E1D6" }}>
+      <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "1px solid #E4E1D6", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {CATEGORIES_REF.map((cat) => {
           const Icon = ICON_MAP[cat.icon] || Shield;
           return (
             <button key={cat.code} onClick={() => setCatRefActive(cat.code)}
-              style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", fontSize: 12, border: "none", cursor: "pointer", borderBottom: catRefActive === cat.code ? `2px solid ${cat.couleur}` : "2px solid transparent", background: "none", color: catRefActive === cat.code ? cat.couleur : "#6B6A60", fontWeight: catRefActive === cat.code ? 600 : 400, fontFamily: "'IBM Plex Sans',sans-serif", marginBottom: -1 }}>
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", fontSize: 12, border: "none", cursor: "pointer", borderBottom: catRefActive === cat.code ? `2px solid ${cat.couleur}` : "2px solid transparent", background: "none", color: catRefActive === cat.code ? cat.couleur : "#6B6A60", fontWeight: catRefActive === cat.code ? 600 : 400, fontFamily: "'IBM Plex Sans',sans-serif", marginBottom: -1, whiteSpace: "nowrap", flexShrink: 0 }}>
               <Icon size={12} />{cat.label}
               <span style={{ fontSize: 10, background: "#EDEAE0", color: "#6B6A60", padding: "1px 5px", borderRadius: 10, fontFamily: "'IBM Plex Mono',monospace" }}>{rpc(cat.code).length}</span>
             </button>

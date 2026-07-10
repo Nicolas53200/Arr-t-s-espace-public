@@ -7,6 +7,7 @@ import { fmtDate } from "@/lib/date";
 import Modal from "@/components/common/Modal";
 import type { Utilisateur, ConfigTenant } from "@/types";
 import type { Role } from "@/types";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 type OngletAdmin = "utilisateurs" | "configuration" | "modules";
 
@@ -46,6 +47,7 @@ export default function AdminPage() {
   const [utilisateurs, setUtilisateurs] = useState<Utilisateur[]>([...UTILISATEURS_MOCK]);
   const [config, setConfig] = useState<ConfigTenant>({ ...CONFIG_INITIALE, nom: tenant.nom, siren: tenant.siren });
   const [modalAjout, setModalAjout] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   if (!can("admin:manage")) {
     return (
@@ -64,7 +66,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <div style={{ paddingTop: 28, maxWidth: 1200, margin: "0 auto", padding: "28px 24px" }}>
+    <div style={{ paddingTop: 28, maxWidth: 1200, margin: "0 auto", padding: isMobile ? "20px 16px" : "28px 24px" }}>
       <div style={{ marginBottom: 18 }}>
         <h2 className="fd" style={{ fontSize: 22, margin: "0 0 2px" }}>Administration</h2>
         <p style={{ color: "#6B6A60", fontSize: 13, margin: 0 }}>Gestion des utilisateurs, configuration et modules.</p>
@@ -156,10 +158,10 @@ function UtilisateursTab({
         <button className="btn-primary" onClick={onAjouter} style={{ fontSize: 12 }}><Plus size={13} />Ajouter</button>
       </div>
 
-      <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, overflow: "hidden", overflowX: "auto", WebkitOverflowScrolling: "touch" as const }}>
         {/* Header */}
         <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr 120px 80px 140px",
+          display: "grid", gridTemplateColumns: "1fr 1fr 120px 80px 140px", minWidth: 600,
           padding: "10px 14px", background: "#F9F8F5", fontSize: 11, fontWeight: 600, color: "#6B6A60",
           borderBottom: "1px solid #E4E1D6",
         }}>
@@ -177,7 +179,7 @@ function UtilisateursTab({
             <div
               key={u.id}
               style={{
-                display: "grid", gridTemplateColumns: "1fr 1fr 120px 80px 140px",
+                display: "grid", gridTemplateColumns: "1fr 1fr 120px 80px 140px", minWidth: 600,
                 padding: "10px 14px", borderBottom: "1px solid #F0EDE4",
                 alignItems: "center", fontSize: 13,
               }}

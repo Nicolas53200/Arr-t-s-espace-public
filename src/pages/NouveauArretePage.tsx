@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
+import { useToast } from "@/contexts/ToastContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { ouvrirApercuPdf } from "@/lib/pdf-client";
 import { AUJOURD_HUI } from "@/config/constants";
@@ -16,6 +17,7 @@ import { couleurImpact, resoudreTroncons } from "@/lib/voie";
 import { genNum } from "@/lib/arrete";
 import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
 import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact } from "@/types";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 export default function NouveauArretePage() {
   const navigate = useNavigate();
@@ -23,6 +25,7 @@ export default function NouveauArretePage() {
   const { arretes, dispatch } = useArretes();
   const { references } = useReferences();
   const { tenant } = useTenant();
+  const toast = useToast();
 
   const arreteExistant = id ? arretes.find((a) => a.id === id) : null;
   const typeInitial = arreteExistant ? TYPES_ARRETE.find((t) => t.code === arreteExistant.type_code) : null;
@@ -36,6 +39,7 @@ export default function NouveauArretePage() {
   const [publie, setPublie] = useState(false);
   const [dernierArrete, setDernierArrete] = useState<{ numero: string; mode: string; titre: string } | null>(null);
   const [motifModification, setMotifModification] = useState("");
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const [nextIdx] = useState(156);
 
   const champsAdresse = useMemo(() => typeArrete?.champs.find((c) => c.type === "adresse"), [typeArrete]);
@@ -111,10 +115,11 @@ export default function NouveauArretePage() {
       setDernierArrete({ numero: num, mode: "cree", titre: titreArrete || typeArrete!.label });
     }
     setPublie(true);
+    toast.success("Arrete publie avec succes");
   }
 
   return (
-    <div style={{ paddingTop: 28, maxWidth: 1200, margin: "0 auto", padding: "28px 24px 48px" }}>
+    <div style={{ paddingTop: 28, maxWidth: 1200, margin: "0 auto", padding: isMobile ? "20px 16px 48px" : "28px 24px 48px" }}>
       {!publie && (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 20, flexWrap: "wrap" }}>
@@ -124,7 +129,7 @@ export default function NouveauArretePage() {
               const ep = arreteExistant ? i + 1 : i;
               return (
                 <div key={lb} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, border: `1px solid ${ep === etape ? "#1E3A5F" : "#E4E1D6"}`, background: ep === etape ? "#1E3A5F" : ep < etape ? "#EDEAE0" : "transparent", color: ep === etape ? "#FAFAF7" : ep < etape ? "#1C1F1B" : "#A6A399", fontSize: 11 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, padding: isMobile ? "3px 7px" : "4px 10px", borderRadius: 20, border: `1px solid ${ep === etape ? "#1E3A5F" : "#E4E1D6"}`, background: ep === etape ? "#1E3A5F" : ep < etape ? "#EDEAE0" : "transparent", color: ep === etape ? "#FAFAF7" : ep < etape ? "#1C1F1B" : "#A6A399", fontSize: isMobile ? 10 : 11 }}>
                     {ep < etape ? <Check size={11} /> : <span className="fm" style={{ fontSize: 9 }}>{i + 1}</span>}
                     <span>{lb}</span>
                   </div>
@@ -192,7 +197,7 @@ export default function NouveauArretePage() {
               </div>
               {phases.map((ph, i) => phaseActive === i && (
                 <div key={ph.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 7 }}>
                     <div><label style={{ fontSize: 11, fontWeight: 500, display: "block", marginBottom: 3 }}>Début</label><input type="datetime-local" value={ph.date_debut} onChange={(e) => updatePhase(i, "date_debut", e.target.value)} /></div>
                     <div><label style={{ fontSize: 11, fontWeight: 500, display: "block", marginBottom: 3 }}>Fin</label><input type="datetime-local" value={ph.date_fin} onChange={(e) => updatePhase(i, "date_fin", e.target.value)} /></div>
                   </div>
@@ -204,7 +209,7 @@ export default function NouveauArretePage() {
           )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button className="btn-ghost" onClick={() => arreteExistant ? navigate("/") : setEtape(0)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
-            <button className="btn-primary" onClick={allerCarte} disabled={!champsValides} style={{ fontSize: 12 }}>Identifier les voies <ChevronRight size={13} /></button>
+            <button className="btn-primary" onClick={() => { if (!champsValides) { toast.warning("Veuillez remplir tous les champs obligatoires"); return; } allerCarte(); }} style={{ fontSize: 12 }}>Identifier les voies <ChevronRight size={13} /></button>
           </div>
         </div>
       )}
@@ -219,7 +224,7 @@ export default function NouveauArretePage() {
               {phases.map((ph, i) => <button key={ph.id} onClick={() => setPhaseActive(i)} className={`phase-tab${phaseActive === i ? " active" : ""}`} style={{ padding: "4px 10px", fontSize: 11 }}>{ph.label} · {ph.troncons.length} voie{ph.troncons.length !== 1 ? "s" : ""}</button>)}
             </div>
           )}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 290px", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 290px", gap: 14 }}>
             <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 13 }}>
               <svg viewBox="0 0 360 340" style={{ width: "100%", height: "auto", maxHeight: 420 }}>
                 <rect width="360" height="340" fill="#F4F2EC" />

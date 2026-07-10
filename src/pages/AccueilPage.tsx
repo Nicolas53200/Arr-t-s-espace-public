@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, CheckCircle2, Map, History, Archive, Shield, Clock, ChevronRight } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
+import { useToast } from "@/contexts/ToastContext";
 import { DUREE_CONSERVATION_ANS } from "@/config/constants";
 import ArreteLigne from "@/components/arretes/ArreteLigne";
 import type { Arrete } from "@/types";
@@ -9,19 +10,23 @@ import { useState } from "react";
 import ModalAbrogation from "@/components/arretes/ModalAbrogation";
 import { genNum } from "@/lib/arrete";
 import { AUJOURD_HUI } from "@/config/constants";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 export default function AccueilPage() {
   const navigate = useNavigate();
   const { actifs, historique, dispatch } = useArretes();
   const { references } = useReferences();
+  const toast = useToast();
   const [modalAction, setModalAction] = useState<{ type: string; arrete: Arrete } | null>(null);
   const [nextIdx, setNextIdx] = useState(156);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   function abrogerArrete(a: Arrete, motif: string) {
     const n = genNum("ABR", nextIdx);
     dispatch({ type: "UPDATE", id: a.id, updates: { statut: "abroge", arrete_abrogation: { numero: n, date: AUJOURD_HUI.toISOString().split("T")[0]!, motif } } });
     setNextIdx((n) => n + 1);
     setModalAction(null);
+    toast.success("Arrete abroge avec succes");
   }
 
   const stats = [
@@ -32,9 +37,9 @@ export default function AccueilPage() {
   ];
 
   return (
-    <div style={{ paddingTop: 48, maxWidth: 1200, margin: "0 auto", padding: "48px 24px" }}>
+    <div style={{ paddingTop: isMobile ? 24 : 48, maxWidth: 1200, margin: "0 auto", padding: isMobile ? "24px 16px" : "48px 24px" }}>
       <p style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#6B6A60", margin: "0 0 8px" }}>Plateforme territoriale</p>
-      <h2 className="fd" style={{ fontSize: 36, margin: "0 0 12px", lineHeight: 1.15, maxWidth: 500 }}>Arrêtés municipaux &amp; espace public</h2>
+      <h2 className="fd" style={{ fontSize: isMobile ? 24 : 36, margin: "0 0 12px", lineHeight: 1.15, maxWidth: 500 }}>Arrêtés municipaux &amp; espace public</h2>
       <p style={{ fontSize: 14, color: "#6B6A60", margin: "0 0 28px", maxWidth: 460, lineHeight: 1.6 }}>Rédigez, cartographiez et diffusez vos arrêtés depuis un seul outil.</p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 40 }}>
         <button className="btn-primary" onClick={() => navigate("/nouveau")} style={{ padding: "11px 22px", fontSize: 14 }}><Plus size={16} />Nouvel arrêté</button>
@@ -42,7 +47,7 @@ export default function AccueilPage() {
         <button className="btn-secondary" onClick={() => navigate("/carte")} style={{ padding: "11px 22px", fontSize: 14 }}><Map size={16} />Carte &amp; calendrier</button>
         <button className="btn-ghost" onClick={() => navigate("/historique")} style={{ padding: "11px 22px", fontSize: 14 }}><History size={16} />Historique</button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 14, marginBottom: 36 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fit,minmax(160px,1fr))", gap: isMobile ? 10 : 14, marginBottom: 36 }}>
         {stats.map(({ label, valeur, couleur, bg, icon: Icon }) => (
           <div key={label} style={{ background: "#FFFFFF", border: "1px solid #E4E1D6", borderRadius: 8, padding: "14px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, Edit2, Download } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
+import { useToast } from "@/contexts/ToastContext";
 import { filtrerArretes, genNum } from "@/lib/arrete";
 import { AUJOURD_HUI } from "@/config/constants";
 import ArreteLigne from "@/components/arretes/ArreteLigne";
@@ -10,13 +11,16 @@ import ModalConfirm from "@/components/arretes/ModalConfirm";
 import ModalAbrogation from "@/components/arretes/ModalAbrogation";
 import { exportArretesCSV, telechargerCSV } from "@/lib/export";
 import type { Arrete } from "@/types";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 export default function ActifsPage() {
   const navigate = useNavigate();
   const { actifs, dispatch } = useArretes();
+  const toast = useToast();
   const [recherche, setRecherche] = useState("");
   const [modalAction, setModalAction] = useState<{ type: string; arrete: Arrete } | null>(null);
   const [nextIdx, setNextIdx] = useState(156);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const liste = filtrerArretes(actifs, recherche);
 
@@ -25,11 +29,12 @@ export default function ActifsPage() {
     dispatch({ type: "UPDATE", id: a.id, updates: { statut: "abroge", arrete_abrogation: { numero: n, date: AUJOURD_HUI.toISOString().split("T")[0]!, motif } } });
     setNextIdx((n) => n + 1);
     setModalAction(null);
+    toast.success("Arrete abroge avec succes");
   }
 
   return (
-    <div style={{ paddingTop: 28, maxWidth: 1200, margin: "0 auto", padding: "28px 24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+    <div style={{ paddingTop: 28, maxWidth: 1200, margin: "0 auto", padding: isMobile ? "20px 16px" : "28px 24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 18, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 0 }}>
         <div>
           <h2 className="fd" style={{ fontSize: 22, margin: "0 0 2px" }}>Arrêtés actifs</h2>
           <p style={{ color: "#6B6A60", fontSize: 13, margin: 0 }}>{actifs.length} en cours</p>
