@@ -5,14 +5,16 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import type { Arrete } from "@/types";
+import type { Arrete, StatutArrete } from "@/types";
 import { ARRETES_INITIAUX } from "@/data/arretes.mock";
 import { estActif, estEnHistorique } from "@/lib/arrete";
+import { peutTransitionner } from "@/lib/workflow";
 
 type ArretesAction =
   | { type: "ADD"; arrete: Arrete }
   | { type: "UPDATE"; id: string; updates: Partial<Arrete> }
-  | { type: "SET_ALL"; arretes: Arrete[] };
+  | { type: "SET_ALL"; arretes: Arrete[] }
+  | { type: "TRANSITION"; id: string; nouveauStatut: StatutArrete; commentaire?: string; auteur: string };
 
 function arretesReducer(state: Arrete[], action: ArretesAction): Arrete[] {
   switch (action.type) {
@@ -24,6 +26,30 @@ function arretesReducer(state: Arrete[], action: ArretesAction): Arrete[] {
       );
     case "SET_ALL":
       return action.arretes;
+    case "TRANSITION":
+      return state.map((a) => {
+        if (a.id !== action.id) return a;
+        if (!peutTransitionner(a.statut, action.nouveauStatut)) return a;
+        const commentaires = [...(a.commentaires ?? [])];
+        if (action.commentaire) {
+          commentaires.push({
+            id: crypto.randomUUID(),
+            auteur: action.auteur,
+            date: new Date().toISOString(),
+            texte: action.commentaire,
+            etape: action.nouveauStatut,
+          });
+        }
+        const updates: Partial<Arrete> = {
+          statut: action.nouveauStatut,
+          commentaires,
+        };
+        if (action.nouveauStatut === "valide") {
+          updates.valideur = action.auteur;
+          updates.date_validation = new Date().toISOString().slice(0, 10);
+        }
+        return { ...a, ...updates };
+      });
   }
 }
 

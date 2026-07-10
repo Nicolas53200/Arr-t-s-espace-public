@@ -13,6 +13,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "reference:view",
     "settings:manage",
     "users:manage",
+    "admin:manage",
   ],
   redacteur: [
     "arrete:create",

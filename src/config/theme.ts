@@ -26,8 +26,10 @@ export const STATUT_UI: Record<
   { label: string; bg: string; color: string }
 > = {
   brouillon: { label: "Brouillon", bg: "#F3F4F6", color: "#6B7280" },
+  en_relecture: { label: "En relecture", bg: "#FEF3C7", color: "#92400E" },
+  valide: { label: "Validé", bg: "#DBEAFE", color: "#1E3A5F" },
   publie: { label: "Publié", bg: "#D1FAE5", color: "#065F46" },
-  modifie: { label: "Modifié", bg: "#DBEAFE", color: "#1E3A5F" },
+  modifie: { label: "Modifié", bg: "#E0E7FF", color: "#4338CA" },
   abroge: { label: "Abrogé", bg: "#FEE2E2", color: "#B91C1C" },
 };
 

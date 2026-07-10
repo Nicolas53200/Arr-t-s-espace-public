@@ -164,4 +164,51 @@ router.put(
   }
 );
 
+/**
+ * GET /api/references/export/csv
+ * Export CSV de toutes les references.
+ */
+router.get(
+  "/export/csv",
+  requireAuth,
+  (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { categorie } = req.query as { categorie?: string };
+
+      let resultat = [...references];
+
+      if (categorie) {
+        resultat = resultat.filter((r) => r.categorie === categorie);
+      }
+
+      const escape = (v: string) =>
+        v.includes(",") || v.includes('"') || v.includes("\n")
+          ? `"${v.replace(/"/g, '""')}"`
+          : v;
+      const row = (cols: string[]) => cols.map(escape).join(",");
+
+      const header = row(["Numero", "Libelle", "Categorie", "Titulaire", "Date", "Validite"]);
+      const lines = resultat.map((r) =>
+        row([
+          r.numero,
+          r.label,
+          r.categorie,
+          r.titulaire ?? "",
+          r.date,
+          r.date_fin_validite ? `${r.date_debut_validite} - ${r.date_fin_validite}` : `Depuis ${r.date_debut_validite}`,
+        ])
+      );
+
+      const csv = [header, ...lines].join("\n");
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="references.csv"');
+      res.send("﻿" + csv);
+    } catch (err) {
+      console.error("Erreur export CSV references :", err);
+      res.status(500).json({ data: null, success: false, error: "Erreur interne du serveur" });
+    }
+  }
+);
+
 export default router;
