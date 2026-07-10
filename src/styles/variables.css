@@ -1,0 +1,33 @@
+:root {
+  /* Couleurs principales */
+  --couleur-primaire: #1E3A5F;
+  --couleur-primaire-hover: #16304F;
+  --couleur-fond: #FAFAF7;
+  --couleur-fond-alt: #F4F2EC;
+  --couleur-fond-carte: #F0EDE4;
+  --couleur-bordure: #E4E1D6;
+  --couleur-bordure-legere: #D8D5C8;
+  --couleur-texte: #1C1F1B;
+  --couleur-texte-secondaire: #6B6A60;
+  --couleur-texte-desactive: #A6A399;
+  --couleur-succes: #2F6B4F;
+  --couleur-succes-leger: #D1FAE5;
+  --couleur-danger: #B91C1C;
+  --couleur-danger-leger: #FEE2E2;
+  --couleur-avertissement: #D9730D;
+  --couleur-avertissement-leger: #FEF3C7;
+  --couleur-violet: #7C3AED;
+  --couleur-blanc: #FFFFFF;
+
+  /* Typographie */
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Source Serif 4', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', 'Fira Code', monospace;
+
+  /* Espacements */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 20px;
+}
