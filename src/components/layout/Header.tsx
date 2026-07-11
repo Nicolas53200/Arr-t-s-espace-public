@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Building2, Home, CheckCircle2, Map, History, BookOpen, ClipboardCheck, BarChart3, ScrollText, Settings, Menu, X, LogOut } from "lucide-react";
+import { Building2, Home, CheckCircle2, Map, History, BookOpen, ClipboardCheck, BarChart3, ScrollText, Settings, Menu, X, LogOut, HelpCircle, Compass } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useArretes } from "@/contexts/ArretesContext";
@@ -91,7 +91,49 @@ export default function Header() {
         )}
 
         {/* Right side */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={() => navigate("/faq")}
+            title="Aide & FAQ"
+            aria-label="Aide et FAQ"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 30,
+              height: 30,
+              background: location.pathname === "/faq" ? "#EBF0F7" : "none",
+              border: "1px solid #E4E1D6",
+              borderRadius: 6,
+              cursor: "pointer",
+              color: location.pathname === "/faq" ? "#1E3A5F" : "#6B6A60",
+              padding: 0,
+              flexShrink: 0,
+            }}
+          >
+            <HelpCircle size={15} />
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("open-tour"))}
+            title="Tour guide"
+            aria-label="Tour guide"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 30,
+              height: 30,
+              background: "none",
+              border: "1px solid #E4E1D6",
+              borderRadius: 6,
+              cursor: "pointer",
+              color: "#6B6A60",
+              padding: 0,
+              flexShrink: 0,
+            }}
+          >
+            <Compass size={15} />
+          </button>
           <NotificationBell />
           {!isMobile && (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
