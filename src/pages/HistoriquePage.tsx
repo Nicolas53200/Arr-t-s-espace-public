@@ -9,6 +9,7 @@ import { exportArretesCSV, telechargerCSV } from "@/lib/export";
 import { TYPES_ARRETE } from "@/data/types-arrete";
 import type { CodeTypeArrete } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useDebounce } from "@/hooks/useDebounce";
 
 export default function HistoriquePage() {
   const { historique } = useArretes();
@@ -17,8 +18,9 @@ export default function HistoriquePage() {
   const [filtreMotif, setFiltreMotif] = useState<"expire" | "abroge" | "">("");
   const [showFiltres, setShowFiltres] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const rechercheDebounced = useDebounce(recherche, 250);
 
-  let liste = filtrerArretes(historique, recherche);
+  let liste = filtrerArretes(historique, rechercheDebounced);
   if (filtreType) liste = liste.filter((a) => a.type_code === filtreType);
   if (filtreMotif === "abroge") liste = liste.filter((a) => a.statut === "abroge");
   if (filtreMotif === "expire") liste = liste.filter((a) => a.statut !== "abroge");

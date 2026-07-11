@@ -13,6 +13,7 @@ import { exportArretesCSV, telechargerCSV } from "@/lib/export";
 import { TYPES_ARRETE } from "@/data/types-arrete";
 import type { Arrete, CodeTypeArrete, StatutArrete } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const FILTRES_STATUT: { code: StatutArrete; label: string }[] = [
   { code: "brouillon", label: "Brouillon" },
@@ -33,8 +34,9 @@ export default function ActifsPage() {
   const [modalAction, setModalAction] = useState<{ type: string; arrete: Arrete } | null>(null);
   const [nextIdx, setNextIdx] = useState(156);
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const rechercheDebounced = useDebounce(recherche, 250);
 
-  let liste = filtrerArretes(actifs, recherche);
+  let liste = filtrerArretes(actifs, rechercheDebounced);
   if (filtreType) liste = liste.filter((a) => a.type_code === filtreType);
   if (filtreStatut) liste = liste.filter((a) => a.statut === filtreStatut);
 
