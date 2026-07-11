@@ -1,65 +1,124 @@
-# Arrêtés & Espace public
+# Actes360
 
-Plateforme territoriale pour la gestion, la cartographie et la diffusion des arrêtés municipaux.
+Plateforme SaaS multi-tenant pour la gestion des arretes municipaux par les collectivites francaises.  
+Produit edite par **Ignis Nova**.
 
-## Fonctionnalités
+## Fonctionnalites
 
-- **Accueil** avec tableau de bord (arrêtés actifs, historique, références)
-- **Création d'arrêtés** par formulaire dynamique (9 types : circulation, stationnement, travaux, manifestation, manifestation sportive, marché, occupation du domaine public, déménagement, alternat) avec support des arrêtés phasés
-- **Carte interactive** des impacts sur la voirie (filtres par type, arrêtés en cours et à venir)
-- **Calendrier dépliant** sous la carte pour visualiser les arrêtés par mois
-- **Basculement automatique en historique** dès expiration de la date de fin
-- **Modification** avec historique des versions (motif obligatoire)
-- **Abrogation** avec génération automatique d'un arrêté d'abrogation (numéroté)
-- **Références permanentes** (délégations de signature, arrêtés permanents) insérées automatiquement dans les visas, avec historique de mise à jour
+- **Landing page** publique avec code d'acces par collectivite
+- **Super-admin** Ignis Nova pour gerer les collectivites (creation, activation, codes d'acces)
+- **Redaction d'arretes** par formulaire dynamique (9 types : circulation, stationnement, travaux, manifestation, etc.) avec support des arretes phases
+- **Workflow de validation** configurable (brouillon, relecture, validation, publication)
+- **Cartographie interactive** Leaflet/OpenStreetMap des impacts sur la voirie
+- **Generation PDF** avec en-tete officiel de la collectivite (logo, devise, adresse, maire)
+- **References permanentes** (delegations de signature, arretes permanents) inserees automatiquement dans les visas
+- **Tableau de bord** analytique (statistiques par mois, type, statut, taux d'abrogation)
+- **Notifications** (expirations, evenements workflow)
+- **Journal d'audit** complet
+- **Export CSV** des arretes, references et journal
+- **Administration tenant** (gestion utilisateurs, configuration collectivite, upload logo)
+- **RBAC** 3 roles : admin, redacteur, lecteur
+- **Responsive** mobile avec menu hamburger
 
-## Lancement en développement
+## Stack technique
 
-```bash
-npm install
-npm run dev
-```
-
-L'application sera disponible sur [http://localhost:5173](http://localhost:5173)
-
-## Build pour production
-
-```bash
-npm run build
-```
-
-Les fichiers de production seront générés dans le dossier `dist/`.
-
-## Déploiement
-
-Le dossier `dist/` peut être déployé sur n'importe quel hébergeur statique :
-- **Vercel** : connecter le dépôt GitHub, framework détecté automatiquement (Vite)
-- **Netlify** : connecter le dépôt, build command `npm run build`, publish directory `dist`
-- **GitHub Pages** : configurer `vite.config.js` avec `base: '/nom-du-repo/'`
+- **Frontend** : React 18 + TypeScript strict + Vite 5
+- **Routing** : React Router v6
+- **State** : React Context + useReducer (par domaine)
+- **Backend** : Express.js + JWT + helmet + CORS
+- **PDF** : PDFKit (serveur) + apercu HTML (client)
+- **Carte** : Leaflet + react-leaflet + OpenStreetMap
+- **Tests** : Vitest + Testing Library
+- **CI** : GitHub Actions (typecheck + tests + build)
+- **Icones** : lucide-react
+- **Styles** : CSS custom properties + inline styles
 
 ## Structure du projet
 
 ```
-arretes-espace-public/
-├── src/
-│   ├── App.jsx        # Composant principal (toute la logique et l'UI)
-│   └── main.jsx       # Point d'entrée React
-├── index.html         # Page HTML racine (Vite)
-├── vite.config.js     # Configuration Vite
-├── package.json
-└── .gitignore
+src/
+  types/          # Types du domaine metier (Arrete, Reference, User...)
+  config/         # Constantes, theme, routes, env
+  data/           # Donnees mock typees
+  lib/            # Logique metier pure (workflow, validation, analytics, export, PDF)
+  services/       # Couche API abstraite (mock / backend)
+  contexts/       # Providers React (Auth, Tenant, Arretes, References, Notifications, Audit, Toast)
+  hooks/          # Custom hooks (useMediaQuery, useFormValidation)
+  components/     # Composants UI et metier
+  pages/          # 15 pages (une par route)
+  styles/         # CSS global + variables
+  __tests__/      # Tests unitaires et composants
+server/
+  routes/         # API REST (arretes, references, auth, admin, audit, notifications)
+  middleware/     # Auth JWT + tenant isolation
+  services/       # Generation PDF serveur
+  db/             # Schema PostgreSQL + RLS + migrations
+docs/adr/         # Architecture Decision Records
 ```
 
-## Stack technique
+## Demarrage rapide
 
-- **React 18** + **Vite 5**
-- **lucide-react** pour les icônes
-- Pas de framework CSS — styles inline React pour un contrôle total
-- Données en mémoire (état React) — prêt à connecter une API backend
+```bash
+npm install --legacy-peer-deps
+npm run dev
+```
 
-## Prochaines étapes (backend)
+L'application sera disponible sur [http://localhost:5173](http://localhost:5173).
 
-Le modèle de données est documenté dans les échanges de conception :
-- PostgreSQL + PostGIS pour la voirie et les géométries
-- Table `ARRETE`, `ARRETE_VOIE`, `PHASE`, `REFERENCE_PERMANENTE`, `DIFFUSION`
-- API REST ou GraphQL à connecter sur les fonctions de publication/lecture
+### Comptes de demo
+
+| Email | Mot de passe | Role |
+|---|---|---|
+| admin@saint-avoye.fr | admin123 | Administrateur |
+| redacteur@saint-avoye.fr | redac123 | Redacteur |
+| lecteur@saint-avoye.fr | lect123 | Lecteur |
+
+Code d'acces demo : `SAINT-AVOYE-2026`  
+Code super-admin : `IGNISNOVA`
+
+## Commandes
+
+```bash
+npm run dev        # Serveur de developpement
+npm run build      # Build production
+npm run test       # Tests unitaires
+npm run test:watch # Tests en mode watch
+npm run typecheck  # Verification TypeScript
+npm run server     # Backend Express (port 3001)
+```
+
+## Architecture
+
+### Multi-tenant
+
+- `TenantContext` fournit l'identite de la collectivite
+- Header `X-Tenant-ID` sur chaque requete API
+- Schema PostgreSQL avec Row-Level Security (RLS)
+- Provisioning instantane via le panel super-admin
+
+### RBAC
+
+- 3 roles : `admin`, `redacteur`, `lecteur`
+- `useAuth().can("arrete:edit")` pour verifier les droits
+- Matrice de permissions dans `src/lib/permissions.ts`
+
+### Workflow
+
+```
+brouillon -> en_relecture -> valide -> publie -> modifie -> publie
+                  |                       |
+                  v                       v
+              brouillon               abroge
+```
+
+## Documentation
+
+Les decisions architecturales sont documentees dans `docs/adr/` :
+
+- ADR-001 : Architecture SaaS multi-tenant
+- ADR-002 : Architecture frontend
+- ADR-003 : Modele RBAC
+- ADR-004 : Strategie de tests
+- ADR-005 : Cartographie Leaflet
+- ADR-006 : Generation PDF
+- ADR-007 : Backend API
