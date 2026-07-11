@@ -52,7 +52,7 @@ export default function Header() {
   ];
 
   return (
-    <header style={{ borderBottom: "1px solid #E4E1D6", background: "#FFFFFF", position: "sticky", top: 0, zIndex: 100 }}>
+    <header role="banner" style={{ borderBottom: "1px solid #E4E1D6", background: "#FFFFFF", position: "sticky", top: 0, zIndex: 100 }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 54 }}>
         {/* Logo */}
         <button onClick={() => navigate("/")} style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
@@ -71,13 +71,13 @@ export default function Header() {
 
         {/* Desktop nav */}
         {!isMobile && (
-          <nav style={{ display: "flex", gap: 2, alignItems: "center" }}>
+          <nav aria-label="Navigation principale" style={{ display: "flex", gap: 2, alignItems: "center" }}>
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
               return (
-                <button key={item.path} onClick={() => navigate(item.path)} className={`nav-link${isActive ? " active" : ""}`} style={item.dot ? { position: "relative" } : undefined}>
-                  <Icon size={13} />{item.label}
+                <button key={item.path} onClick={() => navigate(item.path)} className={`nav-link${isActive ? " active" : ""}`} aria-current={isActive ? "page" : undefined} style={item.dot ? { position: "relative" } : undefined}>
+                  <Icon size={13} aria-hidden="true" />{item.label}
                   {item.badge && (
                     <span style={{ background: item.badge.bg, color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 6px", fontFamily: "'IBM Plex Mono',monospace" }}>{item.badge.count}</span>
                   )}
@@ -135,7 +135,7 @@ export default function Header() {
 
       {/* Mobile dropdown menu */}
       {isMobile && menuOuvert && (
-        <nav style={{
+        <nav aria-label="Navigation principale" style={{
           display: "flex",
           flexDirection: "column",
           borderTop: "1px solid #E4E1D6",

@@ -105,6 +105,9 @@ export default function LandingPage() {
               onChange={(e) => { setCode(e.target.value.toUpperCase()); setErreur(""); }}
               onKeyDown={(e) => e.key === "Enter" && handleAcces()}
               placeholder="CODE-ACCES-2026"
+              aria-label="Code d'acces collectivite"
+              aria-invalid={erreur ? "true" : undefined}
+              autoComplete="off"
               style={{
                 flex: 1, padding: "12px 16px", fontSize: 15, borderRadius: 8,
                 border: erreur ? "1.5px solid #DC2626" : "1.5px solid #E4E1D6",
@@ -188,6 +191,9 @@ export default function LandingPage() {
               onChange={(e) => { setCodeSuperAdmin(e.target.value); setErreurSuperAdmin(""); }}
               onKeyDown={(e) => e.key === "Enter" && handleSuperAdmin()}
               placeholder="Code administrateur"
+              aria-label="Code administrateur plateforme"
+              aria-invalid={erreurSuperAdmin ? "true" : undefined}
+              autoComplete="off"
               style={{
                 width: "100%", padding: "12px 16px", fontSize: 14, borderRadius: 8,
                 border: erreurSuperAdmin ? "1.5px solid #DC2626" : "1.5px solid #E4E1D6",
