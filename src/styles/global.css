@@ -265,3 +265,50 @@ textarea:focus {
 @media (min-width: 769px) {
   .mobile-only { display: none !important; }
 }
+
+/* ── Print styles ── */
+@media print {
+  @page {
+    size: A4;
+    margin: 20mm 15mm;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+  }
+
+  .skip-link,
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost,
+  .btn-danger,
+  .filtre-btn,
+  nav,
+  input[type="search"],
+  .mobile-menu {
+    display: none !important;
+  }
+
+  .card-hover {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    break-inside: avoid;
+  }
+
+  a { color: #000; text-decoration: none; }
+
+  h1, h2, h3 {
+    break-after: avoid;
+    color: #000;
+  }
+
+  [role="list"] {
+    gap: 4px !important;
+  }
+
+  [role="listitem"] {
+    break-inside: avoid;
+  }
+}
