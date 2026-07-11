@@ -3,12 +3,17 @@ import {
   useContext,
   useReducer,
   useMemo,
+  useEffect,
+  useCallback,
+  useState,
   type ReactNode,
 } from "react";
 import type { Arrete, StatutArrete } from "@/types";
 import { ARRETES_INITIAUX } from "@/data/arretes.mock";
 import { estActif, estEnHistorique } from "@/lib/arrete";
 import { peutTransitionner } from "@/lib/workflow";
+import { ENV } from "@/config/env";
+import { ArretesService } from "@/services/arretes.service";
 
 type ArretesAction =
   | { type: "ADD"; arrete: Arrete }
@@ -58,17 +63,59 @@ interface ArretesContextValue {
   actifs: Arrete[];
   historique: Arrete[];
   dispatch: React.Dispatch<ArretesAction>;
+  loading: boolean;
+  error: string | null;
+  recharger: () => void;
 }
 
 const ArretesContext = createContext<ArretesContextValue | null>(null);
 
-export function ArretesProvider({ children }: { children: ReactNode }) {
-  const [arretes, dispatch] = useReducer(arretesReducer, ARRETES_INITIAUX);
+interface ArretesProviderProps {
+  children: ReactNode;
+  /** Force l'utilisation des données mock (par défaut : basé sur ENV.USE_MOCK) */
+  useMock?: boolean;
+}
+
+export function ArretesProvider({ children, useMock }: ArretesProviderProps) {
+  const shouldUseMock = useMock ?? !ENV.USE_MOCK ? true : false;
+  const [arretes, dispatch] = useReducer(
+    arretesReducer,
+    shouldUseMock ? ARRETES_INITIAUX : [],
+  );
+  const [loading, setLoading] = useState(!shouldUseMock);
+  const [error, setError] = useState<string | null>(null);
+
+  const chargerDepuisApi = useCallback(async () => {
+    if (shouldUseMock) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await ArretesService.lister();
+      if (response.success) {
+        dispatch({ type: "SET_ALL", arretes: response.data });
+      } else {
+        setError(response.error ?? "Erreur lors du chargement des arretes");
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Erreur lors du chargement",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [shouldUseMock]);
+
+  useEffect(() => {
+    void chargerDepuisApi();
+  }, [chargerDepuisApi]);
+
   const actifs = useMemo(() => arretes.filter(estActif), [arretes]);
   const historique = useMemo(() => arretes.filter(estEnHistorique), [arretes]);
 
   return (
-    <ArretesContext.Provider value={{ arretes, actifs, historique, dispatch }}>
+    <ArretesContext.Provider
+      value={{ arretes, actifs, historique, dispatch, loading, error, recharger: chargerDepuisApi }}
+    >
       {children}
     </ArretesContext.Provider>
   );

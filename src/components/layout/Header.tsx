@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Building2, Home, CheckCircle2, Map, History, BookOpen, ClipboardCheck, BarChart3, ScrollText, Settings, Menu, X } from "lucide-react";
+import { Building2, Home, CheckCircle2, Map, History, BookOpen, ClipboardCheck, BarChart3, ScrollText, Settings, Menu, X, LogOut } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useArretes } from "@/contexts/ArretesContext";
@@ -13,7 +13,7 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tenant } = useTenant();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { actifs, arretes } = useArretes();
   const { references } = useReferences();
   const [menuOuvert, setMenuOuvert] = useState(false);
@@ -90,9 +90,31 @@ export default function Header() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <NotificationBell />
           {!isMobile && (
-            <div style={{ fontSize: 11, color: "#6B6A60", fontFamily: "'IBM Plex Mono',monospace", textAlign: "right" }}>
-              <p style={{ margin: 0 }}>{user?.nom ?? ""}</p>
-              <p style={{ margin: 0, fontSize: 10 }}>{AUJOURD_HUI.toLocaleDateString("fr-FR")}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 11, color: "#6B6A60", fontFamily: "'IBM Plex Mono',monospace", textAlign: "right" }}>
+                <p style={{ margin: 0 }}>{user?.nom ?? ""}</p>
+                <p style={{ margin: 0, fontSize: 10 }}>{AUJOURD_HUI.toLocaleDateString("fr-FR")}</p>
+              </div>
+              <button
+                onClick={logout}
+                title="Deconnexion"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 30,
+                  height: 30,
+                  background: "none",
+                  border: "1px solid #E4E1D6",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  color: "#6B6A60",
+                  padding: 0,
+                  flexShrink: 0,
+                }}
+              >
+                <LogOut size={14} />
+              </button>
             </div>
           )}
           {isMobile && (
@@ -158,7 +180,28 @@ export default function Header() {
           {/* User info at bottom of mobile menu */}
           <div style={{ padding: "14px 24px", borderTop: "1px solid #E4E1D6", background: "#F9F8F5" }}>
             <p style={{ margin: "0 0 2px", fontSize: 12, fontWeight: 500, color: "#1C1F1B" }}>{user?.nom ?? ""}</p>
-            <p style={{ margin: 0, fontSize: 11, color: "#6B6A60", fontFamily: "'IBM Plex Mono',monospace" }}>{AUJOURD_HUI.toLocaleDateString("fr-FR")}</p>
+            <p style={{ margin: "0 0 10px", fontSize: 11, color: "#6B6A60", fontFamily: "'IBM Plex Mono',monospace" }}>{AUJOURD_HUI.toLocaleDateString("fr-FR")}</p>
+            <button
+              onClick={logout}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 14px",
+                fontSize: 12,
+                fontWeight: 500,
+                fontFamily: "'IBM Plex Sans',sans-serif",
+                background: "none",
+                border: "1px solid #E4E1D6",
+                borderRadius: 6,
+                cursor: "pointer",
+                color: "#6B6A60",
+                width: "100%",
+              }}
+            >
+              <LogOut size={14} />
+              Deconnexion
+            </button>
           </div>
         </nav>
       )}
