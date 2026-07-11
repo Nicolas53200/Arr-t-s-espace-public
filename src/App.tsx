@@ -10,6 +10,8 @@ import ToastContainer from "@/components/common/ToastContainer";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 import RouteProtegee from "@/components/auth/RouteProtegee";
 import AppShell from "@/components/layout/AppShell";
+import LandingPage from "@/pages/LandingPage";
+import SuperAdminPage from "@/pages/SuperAdminPage";
 import LoginPage from "@/pages/LoginPage";
 import AccueilPage from "@/pages/AccueilPage";
 import ActifsPage from "@/pages/ActifsPage";
@@ -39,7 +41,9 @@ export default function App() {
                   <AuditProvider>
                     <ErrorBoundary>
                       <Routes>
-                        {/* Public route */}
+                        {/* Public routes */}
+                        <Route path="bienvenue" element={<LandingPage />} />
+                        <Route path="super-admin" element={<SuperAdminPage />} />
                         <Route path="login" element={<LoginPage />} />
 
                         {/* Protected routes */}
