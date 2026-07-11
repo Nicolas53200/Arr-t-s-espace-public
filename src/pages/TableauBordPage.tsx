@@ -14,6 +14,7 @@ import BarChart from "@/components/charts/BarChart";
 import DonutChart from "@/components/charts/DonutChart";
 import SparkLine from "@/components/charts/SparkLine";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 const styles = {
   page: {
@@ -134,7 +135,7 @@ function CarteKpi({
 }
 
 export default function TableauBordPage() {
-  const { arretes, actifs, historique } = useArretes();
+  const { arretes, actifs, historique, loading } = useArretes();
   const { references } = useReferences();
   const isMobile = useMediaQuery("(max-width: 768px)");
 
@@ -221,6 +222,8 @@ export default function TableauBordPage() {
           new Date(b.date_fin_validite).getTime(),
       );
   }, [references]);
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div style={{ ...styles.page, padding: isMobile ? "20px 16px" : "32px 24px" }}>
