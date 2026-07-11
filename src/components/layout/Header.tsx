@@ -65,7 +65,7 @@ export default function Header() {
           )}
           <div style={{ textAlign: "left" }}>
             <p style={{ fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "#6B6A60", margin: 0, lineHeight: 1 }}>{tenant.nom}</p>
-            <p className="fd" style={{ fontSize: 13, margin: 0, lineHeight: 1.2, color: "#1C1F1B" }}>Arretes & Espace public</p>
+            <p className="fd" style={{ fontSize: 13, margin: 0, lineHeight: 1.2, color: "#1C1F1B" }}>Actes360</p>
           </div>
         </button>
 
