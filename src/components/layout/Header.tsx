@@ -56,9 +56,13 @@ export default function Header() {
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 54 }}>
         {/* Logo */}
         <button onClick={() => navigate("/")} style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-          <div style={{ width: 32, height: 32, background: "#1E3A5F", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Building2 size={16} color="#FAFAF7" strokeWidth={1.75} />
-          </div>
+          {tenant.logo ? (
+            <img src={tenant.logo} alt="" style={{ width: 32, height: 32, borderRadius: 4, objectFit: "contain", flexShrink: 0 }} />
+          ) : (
+            <div style={{ width: 32, height: 32, background: "#1E3A5F", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Building2 size={16} color="#FAFAF7" strokeWidth={1.75} />
+            </div>
+          )}
           <div style={{ textAlign: "left" }}>
             <p style={{ fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "#6B6A60", margin: 0, lineHeight: 1 }}>{tenant.nom}</p>
             <p className="fd" style={{ fontSize: 13, margin: 0, lineHeight: 1.2, color: "#1C1F1B" }}>Arretes & Espace public</p>

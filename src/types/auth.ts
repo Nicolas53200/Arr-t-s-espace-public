@@ -27,4 +27,11 @@ export interface TenantInfo {
   nom: string;
   code_postal: string;
   siren: string;
+  logo?: string;
+  adresse?: string;
+  telephone?: string;
+  email_contact?: string;
+  devise?: string;
+  nom_maire?: string;
+  titre_maire?: string;
 }

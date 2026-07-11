@@ -1,4 +1,4 @@
-import type { Arrete, Reference } from "@/types";
+import type { Arrete, Reference, TenantInfo } from "@/types";
 
 function formatDateFr(d: string): string {
   if (!d) return "—";
@@ -25,15 +25,12 @@ function extraireNomCommune(nomTenant: string): string {
   return nomTenant.replace(/^Ville de /, "");
 }
 
-/**
- * Ouvre une fenêtre avec un aperçu PDF imprimable de l'arrêté municipal.
- * L'utilisateur peut imprimer ou "Enregistrer en PDF" via le dialogue d'impression.
- */
 export function ouvrirApercuPdf(
   arrete: Arrete,
   references: Reference[],
   nomCommune: string,
   codePostal: string,
+  tenant?: TenantInfo,
 ): void {
   const commune = extraireNomCommune(nomCommune);
   const refsActives = references.filter((r) => r.actif);
@@ -41,13 +38,33 @@ export function ouvrirApercuPdf(
   const visasHtml = refsActives
     .map(
       (r) =>
-        `<p class="visa">VU ${escapeHtml(r.label)} (n° ${escapeHtml(r.numero)} du ${formatDateFr(r.date)}) ;</p>`,
+        `<p class="visa">VU ${escapeHtml(r.label)} (n° ${escapeHtml(r.numero)} du ${formatDateFr(r.date)}) ;</p>`,
     )
     .join("\n");
 
   const voiesHtml = arrete.voies
     .map((v) => `<li>${escapeHtml(v)}</li>`)
     .join("\n");
+
+  const logoHtml = tenant?.logo
+    ? `<img src="${tenant.logo}" alt="" class="logo-mairie" />`
+    : "";
+
+  const deviseHtml = tenant?.devise
+    ? `<div class="devise">${escapeHtml(tenant.devise)}</div>`
+    : "";
+
+  const adresseHtml = tenant?.adresse
+    ? `<div class="adresse-mairie">${escapeHtml(tenant.adresse)}</div>`
+    : `<div class="code-postal">Code postal : ${escapeHtml(codePostal)}</div>`;
+
+  const contactHtml = [
+    tenant?.telephone ? `Tel. ${escapeHtml(tenant.telephone)}` : "",
+    tenant?.email_contact ? escapeHtml(tenant.email_contact) : "",
+  ].filter(Boolean).join(" — ");
+
+  const titreMaire = tenant?.titre_maire ?? "Le Maire";
+  const nomMaire = tenant?.nom_maire ?? arrete.cree_par;
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -76,11 +93,23 @@ export function ouvrirApercuPdf(
     text-align: center;
     margin-bottom: 20pt;
   }
+  .logo-mairie {
+    max-height: 60pt;
+    max-width: 120pt;
+    margin-bottom: 8pt;
+    object-fit: contain;
+  }
   .header .republique {
     font-size: 10pt;
     color: #6B6A60;
     letter-spacing: 0.1em;
     text-transform: uppercase;
+  }
+  .header .devise {
+    font-size: 9pt;
+    color: #6B6A60;
+    font-style: italic;
+    margin: 2pt 0 4pt;
   }
   .header .commune {
     font-size: 16pt;
@@ -89,9 +118,18 @@ export function ouvrirApercuPdf(
     text-transform: uppercase;
     margin: 4pt 0;
   }
+  .header .adresse-mairie {
+    font-size: 9pt;
+    color: #6B6A60;
+  }
   .header .code-postal {
     font-size: 9pt;
     color: #6B6A60;
+  }
+  .header .contact-mairie {
+    font-size: 8pt;
+    color: #A6A399;
+    margin-top: 2pt;
   }
   .separator {
     border: none;
@@ -182,6 +220,11 @@ export function ouvrirApercuPdf(
     font-size: 10pt;
     color: #6B6A60;
   }
+  .signature .titre-signataire {
+    font-size: 10pt;
+    color: #6B6A60;
+    margin-top: 4pt;
+  }
   .signature .auteur {
     font-size: 11pt;
     font-weight: bold;
@@ -248,21 +291,24 @@ export function ouvrirApercuPdf(
 </div>
 <div class="page">
   <div class="header">
-    <div class="republique">République Française</div>
+    ${logoHtml}
+    <div class="republique">Republique Francaise</div>
+    ${deviseHtml}
     <div class="commune">Mairie de ${escapeHtml(commune)}</div>
-    <div class="code-postal">Code postal : ${escapeHtml(codePostal)}</div>
+    ${adresseHtml}
+    ${contactHtml ? `<div class="contact-mairie">${contactHtml}</div>` : ""}
   </div>
 
   <hr class="separator">
 
   <div class="titre-arrete">
-    <div class="label-arrete">Arrêté Municipal</div>
+    <div class="label-arrete">Arrete Municipal</div>
     <div class="numero">${escapeHtml(arrete.numero)}</div>
     <div class="titre">${escapeHtml(arrete.titre)}</div>
     <div class="type-label">Type : ${escapeHtml(arrete.type_label)}</div>
   </div>
 
-  <p class="maire">LE MAIRE DE ${escapeHtml(commune.toUpperCase())},</p>
+  <p class="maire">${escapeHtml(titreMaire.toUpperCase())} DE ${escapeHtml(commune.toUpperCase())},</p>
 
   ${
     refsActives.length > 0
@@ -270,19 +316,19 @@ export function ouvrirApercuPdf(
       : ""
   }
 
-  <p class="section-titre">CONSIDÉRANT :</p>
-  <p class="considerant">• La nécessité de réglementer la circulation et/ou le stationnement sur la voie publique ;</p>
-  <p class="considerant">• Les impératifs de sécurité et de commodité de passage ;</p>
+  <p class="section-titre">CONSIDERANT :</p>
+  <p class="considerant">La necessite de reglementer la circulation et/ou le stationnement sur la voie publique ;</p>
+  <p class="considerant">Les imperatifs de securite et de commodite de passage ;</p>
 
-  <div class="arrete-header">ARRÊTE</div>
+  <div class="arrete-header">ARRETE</div>
 
   <div class="article">
-    <p class="article-titre">Article 1 — Période d’application</p>
+    <p class="article-titre">Article 1 — Periode d'application</p>
     <p class="article-contenu">Du ${formatDateFr(arrete.date_debut)} au ${formatDateFr(arrete.date_fin)}.</p>
   </div>
 
   <div class="article">
-    <p class="article-titre">Article 2 — Voies concernées</p>
+    <p class="article-titre">Article 2 — Voies concernees</p>
     <div class="article-contenu">
       <ul>
         ${voiesHtml}
@@ -292,24 +338,24 @@ export function ouvrirApercuPdf(
 
   <div class="article">
     <p class="article-titre">Article 3 — Mesures de police</p>
-    <p class="article-contenu">Les mesures de restriction de circulation et/ou de stationnement sont applicables conformément à la signalisation mise en place.</p>
+    <p class="article-contenu">Les mesures de restriction de circulation et/ou de stationnement sont applicables conformement a la signalisation mise en place.</p>
   </div>
 
   <div class="article">
-    <p class="article-titre">Article 4 — Exécution</p>
-    <p class="article-contenu">Le présent arrêté sera notifié aux services de police municipale, aux services techniques et à toute personne intéressée.</p>
+    <p class="article-titre">Article 4 — Execution</p>
+    <p class="article-contenu">Le present arrete sera notifie aux services de police municipale, aux services techniques et a toute personne interessee.</p>
   </div>
 
   <hr class="separator">
 
   <div class="signature">
-    <p class="lieu-date">Fait à ${escapeHtml(commune)}, le ${formatDateFr(arrete.date_creation)}</p>
-    <p class="auteur">${escapeHtml(arrete.cree_par)}</p>
-    <p class="delegation">Par délégation du Maire</p>
+    <p class="lieu-date">Fait a ${escapeHtml(commune)}, le ${formatDateFr(arrete.date_creation)}</p>
+    <p class="titre-signataire">${escapeHtml(titreMaire)}</p>
+    <p class="auteur">${escapeHtml(nomMaire)}</p>
   </div>
 
   <div class="footer">
-    Document généré automatiquement — Mairie de ${escapeHtml(commune)} — ${escapeHtml(arrete.numero)}
+    Document genere automatiquement — Mairie de ${escapeHtml(commune)} — ${escapeHtml(arrete.numero)}
   </div>
 </div>
 </body>

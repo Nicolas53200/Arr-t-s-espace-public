@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Users, Settings, Puzzle, Plus, X, Check, ToggleLeft, ToggleRight, Map, FileText, Bell, GitBranch, Download } from "lucide-react";
+import { useState, useRef } from "react";
+import { Users, Settings, Puzzle, Plus, X, Check, ToggleLeft, ToggleRight, Map, FileText, Bell, GitBranch, Download, Upload, Trash2, Image } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { useToast } from "@/contexts/ToastContext";
 import { UTILISATEURS_MOCK } from "@/data/utilisateurs.mock";
 import { fmtDate } from "@/lib/date";
 import Modal from "@/components/common/Modal";
@@ -26,26 +27,36 @@ const MODULES_DISPONIBLES: ModuleInfo[] = [
   { id: "export", nom: "Export", description: "Export des donnees en CSV, PDF et formats ouverts.", icone: Download },
 ];
 
-const CONFIG_INITIALE: ConfigTenant = {
-  id: "tenant_saint_avoye",
-  nom: "Ville de Saint-Avoye",
-  siren: "215600001",
-  adresse: "1 Place de la Mairie, 56000 Saint-Avoye",
-  couleur_primaire: "#1E3A5F",
-  modules_actifs: ["cartographie", "pdf", "export"],
-  limites: {
-    max_utilisateurs: 20,
-    max_arretes: 500,
-    stockage_mo: 2048,
-  },
-};
+function configInitiale(tenant: { nom: string; siren: string; adresse?: string; logo?: string; telephone?: string; email_contact?: string; devise?: string; nom_maire?: string; titre_maire?: string }): ConfigTenant {
+  return {
+    id: "tenant_saint_avoye",
+    nom: tenant.nom,
+    siren: tenant.siren,
+    adresse: tenant.adresse ?? "1 Place de la Mairie, 56000 Saint-Avoye",
+    logo: tenant.logo,
+    telephone: tenant.telephone,
+    email_contact: tenant.email_contact,
+    devise: tenant.devise ?? "Liberté, Égalité, Fraternité",
+    nom_maire: tenant.nom_maire,
+    titre_maire: tenant.titre_maire ?? "Le Maire",
+    couleur_primaire: "#1E3A5F",
+    modules_actifs: ["cartographie", "pdf", "export"],
+    limites: {
+      max_utilisateurs: 20,
+      max_arretes: 500,
+      stockage_mo: 2048,
+    },
+  };
+}
 
 export default function AdminPage() {
   const { can } = useAuth();
   const { tenant } = useTenant();
   const [onglet, setOnglet] = useState<OngletAdmin>("utilisateurs");
   const [utilisateurs, setUtilisateurs] = useState<Utilisateur[]>([...UTILISATEURS_MOCK]);
-  const [config, setConfig] = useState<ConfigTenant>({ ...CONFIG_INITIALE, nom: tenant.nom, siren: tenant.siren });
+  const { updateTenant } = useTenant();
+  const toast = useToast();
+  const [config, setConfig] = useState<ConfigTenant>(() => configInitiale(tenant));
   const [modalAjout, setModalAjout] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
 
@@ -104,7 +115,7 @@ export default function AdminPage() {
       )}
 
       {onglet === "configuration" && (
-        <ConfigurationTab config={config} setConfig={setConfig} />
+        <ConfigurationTab config={config} setConfig={setConfig} updateTenant={updateTenant} toast={toast} />
       )}
 
       {onglet === "modules" && (
@@ -228,24 +239,57 @@ function UtilisateursTab({
 function ConfigurationTab({
   config,
   setConfig,
+  updateTenant,
+  toast,
 }: {
   config: ConfigTenant;
   setConfig: React.Dispatch<React.SetStateAction<ConfigTenant>>;
+  updateTenant: (updates: Partial<{ nom: string; logo?: string; adresse?: string; telephone?: string; email_contact?: string; devise?: string; nom_maire?: string; titre_maire?: string }>) => void;
+  toast: { success: (msg: string) => void };
 }) {
-  const [saved, setSaved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500_000) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setConfig((prev) => ({ ...prev, logo: dataUrl }));
+    };
+    reader.readAsDataURL(file);
   }
 
-  const champ = (label: string, valeur: string, champ: keyof ConfigTenant) => (
+  function removeLogo() {
+    setConfig((prev) => ({ ...prev, logo: undefined }));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleSave() {
+    updateTenant({
+      nom: config.nom,
+      logo: config.logo,
+      adresse: config.adresse,
+      telephone: config.telephone,
+      email_contact: config.email_contact,
+      devise: config.devise,
+      nom_maire: config.nom_maire,
+      titre_maire: config.titre_maire,
+    });
+    toast.success("Configuration enregistree");
+  }
+
+  const champ = (label: string, valeur: string | undefined, field: keyof ConfigTenant, placeholder?: string) => (
     <div style={{ marginBottom: 14 }}>
       <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4, color: "#1A1A18" }}>{label}</label>
       <input
         type="text"
-        value={valeur}
-        onChange={(e) => setConfig((prev) => ({ ...prev, [champ]: e.target.value }))}
+        value={valeur ?? ""}
+        onChange={(e) => setConfig((prev) => ({ ...prev, [field]: e.target.value }))}
+        placeholder={placeholder}
         style={{ width: "100%", boxSizing: "border-box" }}
       />
     </div>
@@ -253,11 +297,82 @@ function ConfigurationTab({
 
   return (
     <div style={{ maxWidth: 560 }}>
-      <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 20 }}>
+      {/* Logo */}
+      <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 20, marginBottom: 16 }}>
+        <h3 className="fd" style={{ fontSize: 15, margin: "0 0 4px" }}>Logo de la collectivite</h3>
+        <p style={{ fontSize: 11, color: "#6B6A60", margin: "0 0 14px" }}>Ce logo apparaitra dans l'en-tete de l'application et sur les arretes PDF generes.</p>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{
+            width: 96, height: 96, borderRadius: 8,
+            border: "2px dashed #E4E1D6", background: "#F9F8F5",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            overflow: "hidden", flexShrink: 0,
+          }}>
+            {config.logo ? (
+              <img src={config.logo} alt="Logo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+            ) : (
+              <Image size={28} color="#A6A399" />
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml"
+              onChange={handleLogoUpload}
+              style={{ display: "none" }}
+            />
+            <button className="btn-primary" onClick={() => fileInputRef.current?.click()} style={{ fontSize: 12 }}>
+              <Upload size={12} />{config.logo ? "Changer le logo" : "Telecharger un logo"}
+            </button>
+            {config.logo && (
+              <button className="btn-secondary" onClick={removeLogo} style={{ fontSize: 12 }}>
+                <Trash2 size={12} />Supprimer
+              </button>
+            )}
+            <p style={{ fontSize: 10, color: "#A6A399", margin: 0 }}>PNG, JPG ou SVG. 500 Ko max.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Informations */}
+      <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 20, marginBottom: 16 }}>
         <h3 className="fd" style={{ fontSize: 15, margin: "0 0 16px" }}>Informations de la collectivite</h3>
         {champ("Nom de la collectivite", config.nom, "nom")}
         {champ("SIREN", config.siren, "siren")}
-        {champ("Adresse", config.adresse, "adresse")}
+        {champ("Adresse", config.adresse, "adresse", "1 Place de la Mairie, 56000...")}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>{champ("Telephone", config.telephone, "telephone", "02 97 00 00 00")}</div>
+          <div>{champ("Email de contact", config.email_contact, "email_contact", "mairie@commune.fr")}</div>
+        </div>
+        {champ("Devise", config.devise, "devise", "Liberte, Egalite, Fraternite")}
+      </div>
+
+      {/* En-tete officiel */}
+      <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 20, marginBottom: 16 }}>
+        <h3 className="fd" style={{ fontSize: 15, margin: "0 0 4px" }}>En-tete officiel des arretes</h3>
+        <p style={{ fontSize: 11, color: "#6B6A60", margin: "0 0 14px" }}>Ces informations sont inserees automatiquement dans l'en-tete de chaque arrete PDF.</p>
+        {champ("Nom du Maire / Signataire", config.nom_maire, "nom_maire", "M. Jean-Pierre Martin")}
+        {champ("Titre du signataire", config.titre_maire, "titre_maire", "Le Maire")}
+
+        {/* Preview */}
+        <div style={{ border: "1px solid #E4E1D6", borderRadius: 6, padding: 16, background: "#FAFAF7", marginTop: 10 }}>
+          <p style={{ fontSize: 10, color: "#A6A399", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Apercu de l'en-tete PDF</p>
+          <div style={{ textAlign: "center", fontFamily: "'Times New Roman', Times, serif" }}>
+            {config.logo && (
+              <img src={config.logo} alt="" style={{ height: 48, marginBottom: 6, objectFit: "contain" }} />
+            )}
+            <p style={{ fontSize: 9, color: "#6B6A60", letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 2px" }}>Republique Francaise</p>
+            {config.devise && <p style={{ fontSize: 8, color: "#A6A399", fontStyle: "italic", margin: "0 0 4px" }}>{config.devise}</p>}
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#1E3A5F", textTransform: "uppercase", margin: "0 0 2px" }}>{config.nom || "Nom de la collectivite"}</p>
+            {config.adresse && <p style={{ fontSize: 9, color: "#6B6A60", margin: 0 }}>{config.adresse}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Couleur + limites */}
+      <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 20 }}>
         <div style={{ marginBottom: 14 }}>
           <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4, color: "#1A1A18" }}>Couleur primaire</label>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -291,7 +406,7 @@ function ConfigurationTab({
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
           <button className="btn-primary" onClick={handleSave} style={{ fontSize: 12 }}>
-            <Check size={12} />{saved ? "Enregistre !" : "Enregistrer"}
+            <Check size={12} />Enregistrer
           </button>
         </div>
       </div>

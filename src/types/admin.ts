@@ -14,6 +14,11 @@ export interface ConfigTenant {
   siren: string;
   adresse: string;
   logo?: string;
+  telephone?: string;
+  email_contact?: string;
+  devise?: string;
+  nom_maire?: string;
+  titre_maire?: string;
   couleur_primaire: string;
   modules_actifs: string[];
   limites: {

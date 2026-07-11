@@ -504,7 +504,7 @@ export default function NouveauArretePage() {
                   versions: [],
                   arrete_abrogation: null,
                 };
-                ouvrirApercuPdf(apercu, references, tenant.nom, tenant.code_postal);
+                ouvrirApercuPdf(apercu, references, tenant.nom, tenant.code_postal, tenant);
               }} style={{ fontSize: 12 }}><FileText size={12} />Apercu PDF</button>
               <button
                 onClick={publierArrete}

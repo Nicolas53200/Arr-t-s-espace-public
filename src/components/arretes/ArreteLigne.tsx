@@ -46,7 +46,7 @@ export default function ArreteLigne({ arrete, onModifier, onAbroger, compact, ar
         {!compact && (
           <div style={{ display: "flex", gap: 5, flexShrink: 0, flexWrap: isMobile ? "wrap" : "nowrap" }}>
             {arrete.versions.length > 0 && <button className="btn-secondary" onClick={() => setOuvert(o => !o)} style={{ padding: "4px 9px", fontSize: 10 }}><GitBranch size={10} />{isMobile ? "" : `${arrete.versions.length}v`} {ouvert ? <ChevronUp size={10} /> : <ChevronDown size={10} />}</button>}
-            <button className="btn-secondary" onClick={() => ouvrirApercuPdf(arrete, references, tenant.nom, tenant.code_postal)} style={{ padding: "4px 9px", fontSize: 10 }}><FileText size={10} />{isMobile ? "" : "PDF"}</button>
+            <button className="btn-secondary" onClick={() => ouvrirApercuPdf(arrete, references, tenant.nom, tenant.code_postal, tenant)} style={{ padding: "4px 9px", fontSize: 10 }}><FileText size={10} />{isMobile ? "" : "PDF"}</button>
             {peutModifier && <button className="btn-secondary" onClick={onModifier} style={{ padding: "4px 9px", fontSize: 10 }}><Edit2 size={10} />{isMobile ? "" : "Modifier"}</button>}
             {peutModifier && <button className="btn-danger" onClick={onAbroger} style={{ padding: "4px 9px", fontSize: 10 }}><Trash2 size={10} />{isMobile ? "" : "Abroger"}</button>}
           </div>
