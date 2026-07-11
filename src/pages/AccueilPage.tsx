@@ -11,10 +11,11 @@ import ModalAbrogation from "@/components/arretes/ModalAbrogation";
 import { genNum } from "@/lib/arrete";
 import { AUJOURD_HUI } from "@/config/constants";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 export default function AccueilPage() {
   const navigate = useNavigate();
-  const { actifs, historique, dispatch } = useArretes();
+  const { actifs, historique, dispatch, loading, error } = useArretes();
   const { references } = useReferences();
   const toast = useToast();
   const [modalAction, setModalAction] = useState<{ type: string; arrete: Arrete } | null>(null);
@@ -35,6 +36,15 @@ export default function AccueilPage() {
     { label: "Références", valeur: references.filter((r) => r.actif).length, couleur: "#2F6B4F", bg: "#D1FAE5", icon: Shield },
     { label: "Conservation", valeur: `${DUREE_CONSERVATION_ANS} ans`, couleur: "#92400E", bg: "#FEF3C7", icon: Clock },
   ];
+
+  if (loading) return <LoadingSpinner />;
+
+  if (error) return (
+    <div style={{ padding: 40, textAlign: "center", color: "#DC2626", fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      <p style={{ fontSize: 15, fontWeight: 600 }}>Erreur de chargement</p>
+      <p style={{ fontSize: 13, color: "#6B6A60" }}>{error}</p>
+    </div>
+  );
 
   return (
     <div style={{ paddingTop: isMobile ? 24 : 48, maxWidth: 1200, margin: "0 auto", padding: isMobile ? "24px 16px" : "48px 24px" }}>

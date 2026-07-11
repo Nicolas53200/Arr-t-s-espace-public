@@ -10,9 +10,10 @@ import { TYPES_ARRETE } from "@/data/types-arrete";
 import type { CodeTypeArrete } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useDebounce } from "@/hooks/useDebounce";
+import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 export default function HistoriquePage() {
-  const { historique } = useArretes();
+  const { historique, loading } = useArretes();
   const [recherche, setRecherche] = useState("");
   const [filtreType, setFiltreType] = useState<CodeTypeArrete | "">("");
   const [filtreMotif, setFiltreMotif] = useState<"expire" | "abroge" | "">("");
@@ -26,6 +27,8 @@ export default function HistoriquePage() {
   if (filtreMotif === "expire") liste = liste.filter((a) => a.statut !== "abroge");
 
   const filtresActifs = (filtreType ? 1 : 0) + (filtreMotif ? 1 : 0);
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div style={{ paddingTop: 28, maxWidth: 1200, margin: "0 auto", padding: isMobile ? "20px 16px" : "28px 24px" }}>

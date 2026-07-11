@@ -14,6 +14,7 @@ import { TYPES_ARRETE } from "@/data/types-arrete";
 import type { Arrete, CodeTypeArrete, StatutArrete } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useDebounce } from "@/hooks/useDebounce";
+import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 const FILTRES_STATUT: { code: StatutArrete; label: string }[] = [
   { code: "brouillon", label: "Brouillon" },
@@ -25,7 +26,7 @@ const FILTRES_STATUT: { code: StatutArrete; label: string }[] = [
 
 export default function ActifsPage() {
   const navigate = useNavigate();
-  const { actifs, dispatch } = useArretes();
+  const { actifs, dispatch, loading } = useArretes();
   const toast = useToast();
   const [recherche, setRecherche] = useState("");
   const [filtreType, setFiltreType] = useState<CodeTypeArrete | "">("");
@@ -55,6 +56,8 @@ export default function ActifsPage() {
     setFiltreStatut("");
     setRecherche("");
   }
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div style={{ paddingTop: 28, maxWidth: 1200, margin: "0 auto", padding: isMobile ? "20px 16px" : "28px 24px" }}>
