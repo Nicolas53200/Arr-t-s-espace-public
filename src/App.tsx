@@ -29,6 +29,22 @@ import "@/styles/global.css";
 import "leaflet/dist/leaflet.css";
 import "@/styles/leaflet-overrides.css";
 
+function SectionFallback({ section }: { section: string }) {
+  return (
+    <div style={{ padding: 40, textAlign: "center", color: "#6B6A60", fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      <p style={{ fontSize: 15, fontWeight: 600, color: "#1C1F1B", margin: "0 0 8px" }}>
+        Erreur dans {section}
+      </p>
+      <p style={{ fontSize: 13, margin: "0 0 16px" }}>
+        Cette section a rencontre un probleme. Les autres fonctionnalites restent disponibles.
+      </p>
+      <button className="btn-secondary" onClick={() => window.location.reload()} style={{ fontSize: 12 }}>
+        Recharger la page
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -51,13 +67,13 @@ export default function App() {
                           <Route element={<AppShell />}>
                             <Route index element={<AccueilPage />} />
                             <Route path="actifs" element={<ActifsPage />} />
-                            <Route path="carte" element={<CartePage />} />
+                            <Route path="carte" element={<ErrorBoundary fallback={<SectionFallback section="Cartographie" />}><CartePage /></ErrorBoundary>} />
                             <Route path="historique" element={<HistoriquePage />} />
-                            <Route path="nouveau" element={<NouveauArretePage />} />
-                            <Route path="nouveau/:id" element={<NouveauArretePage />} />
+                            <Route path="nouveau" element={<ErrorBoundary fallback={<SectionFallback section="Formulaire" />}><NouveauArretePage /></ErrorBoundary>} />
+                            <Route path="nouveau/:id" element={<ErrorBoundary fallback={<SectionFallback section="Formulaire" />}><NouveauArretePage /></ErrorBoundary>} />
                             <Route path="validation" element={<ValidationPage />} />
                             <Route path="references" element={<ReferencesPage />} />
-                            <Route path="tableau-de-bord" element={<TableauBordPage />} />
+                            <Route path="tableau-de-bord" element={<ErrorBoundary fallback={<SectionFallback section="Tableau de bord" />}><TableauBordPage /></ErrorBoundary>} />
                             <Route path="notifications" element={<NotificationsPage />} />
                             <Route path="journal" element={<JournalPage />} />
                           </Route>
