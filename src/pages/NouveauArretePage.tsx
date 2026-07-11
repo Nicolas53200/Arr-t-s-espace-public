@@ -33,11 +33,6 @@ const REGLES_TITRE: RegleValidation[] = [
   { type: "minLength", valeur: 5 },
 ];
 
-const REGLES_NUMERO: RegleValidation[] = [
-  { type: "required" },
-  { type: "pattern", valeur: /^[A-Za-z0-9\-/]+$/, message: "Format invalide (lettres, chiffres, - et /)" },
-];
-
 export default function NouveauArretePage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -159,7 +154,7 @@ export default function NouveauArretePage() {
   function tentativeAllerCarte() {
     // Marquer tous les champs comme touched
     setTouchedEtape1((prev) => {
-      const next = { ...prev, titre: true };
+      const next: Record<string, boolean> = { ...prev, titre: true };
       for (const cid of champsTypeRequis) {
         next[cid] = true;
       }

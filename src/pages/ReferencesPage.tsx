@@ -9,6 +9,7 @@ import Modal from "@/components/common/Modal";
 import { exportReferencesCSV, telechargerCSV } from "@/lib/export";
 import type { Reference, CategorieReference } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { validerChamp } from "@/lib/validation";
 
 interface RefEdition {
   mode: "new" | "update";
@@ -179,10 +180,21 @@ function ModalRef({ refEnEdition, onCancel, onSaveNew, onSaveUpdate }: {
     date_debut_validite: refEnEdition.date_debut_validite || new Date().toISOString().split("T")[0]!,
     date_fin_validite: refEnEdition.date_fin_validite,
   });
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   const f = (field: string, val: string) => setForm((p) => ({ ...p, [field]: val }));
+  const touch = (field: string) => setTouched((p) => ({ ...p, [field]: true }));
+
+  const errNumero = validerChamp(form.numero, [{ type: "required" }]);
+  const errDate = validerChamp(form.date, [{ type: "required" }, { type: "dateValide" }]);
+  const errLabel = isNew ? validerChamp(form.label, [{ type: "required" }]) : { valide: true } as const;
+  const errDateDebut = validerChamp(form.date_debut_validite, [{ type: "required" }, { type: "dateValide" }]);
+
+  const formValide = errNumero.valide && errDate.valide && errLabel.valide && errDateDebut.valide;
 
   function handleSave() {
+    setTouched({ numero: true, date: true, label: true, date_debut_validite: true });
+    if (!formValide) return;
     if (isNew) {
       onSaveNew({ code: form.code, categorie: form.categorie, label: form.label, titulaire: form.titulaire || null, numero: form.numero, date: form.date, actif: true, date_debut_validite: form.date_debut_validite, date_fin_validite: form.date_fin_validite });
     } else {
@@ -190,35 +202,54 @@ function ModalRef({ refEnEdition, onCancel, onSaveNew, onSaveUpdate }: {
     }
   }
 
+  const styleErreur = { fontSize: 11, color: "#DC2626", margin: "3px 0 0" } as const;
+  function borderErr(hasError: boolean) { return hasError ? { borderColor: "#DC2626" } : {}; }
+
   return (
     <Modal onClose={onCancel}>
       <div style={{ background: "#FFFFFF", borderRadius: 11, padding: 24, width: "100%", maxWidth: 470, boxShadow: "0 20px 60px #0000002A" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 className="fd" style={{ fontSize: 16, margin: 0 }}>{isNew ? "Nouvelle référence" : "Mettre à jour"}</h3>
+          <h3 className="fd" style={{ fontSize: 16, margin: 0 }}>{isNew ? "Nouvelle reference" : "Mettre a jour"}</h3>
           <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B6A60" }}><X size={16} /></button>
         </div>
-        {!isNew && <div style={{ background: "#EBF0F7", borderRadius: 5, padding: "8px 11px", marginBottom: 11, fontSize: 11, color: "#1E3A5F" }}><strong>Note :</strong> L'ancienne version sera archivée. Les arrêtés déjà publiés conservent leur visa.</div>}
+        {!isNew && <div style={{ background: "#EBF0F7", borderRadius: 5, padding: "8px 11px", marginBottom: 11, fontSize: 11, color: "#1E3A5F" }}><strong>Note :</strong> L'ancienne version sera archivee. Les arretes deja publies conservent leur visa.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {isNew && (
             <>
-              <div><label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Libellé</label><input type="text" value={form.label} onChange={(e) => f("label", e.target.value)} placeholder="Ex. Zone 30" /></div>
-              <div><label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Catégorie</label><select value={form.categorie} onChange={(e) => f("categorie", e.target.value)}>{CATEGORIES_REF.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}</select></div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Libelle</label>
+                <input type="text" value={form.label} onChange={(e) => f("label", e.target.value)} onBlur={() => touch("label")} placeholder="Ex. Zone 30" style={borderErr(!!(touched["label"] && !errLabel.valide))} />
+                {touched["label"] && !errLabel.valide && <p style={styleErreur}>{errLabel.erreur}</p>}
+              </div>
+              <div><label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Categorie</label><select value={form.categorie} onChange={(e) => f("categorie", e.target.value)}>{CATEGORIES_REF.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}</select></div>
               {form.categorie === "delegation" && <div><label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Titulaire</label><input type="text" value={form.titulaire} onChange={(e) => f("titulaire", e.target.value)} /></div>}
             </>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div><label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>{isNew ? "Numéro" : "Nouveau numéro"}</label><input type="text" value={form.numero} onChange={(e) => f("numero", e.target.value)} placeholder="045/2026" /></div>
-            <div><label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Date</label><input type="text" value={form.date} onChange={(e) => f("date", e.target.value)} placeholder="AAAA-MM-JJ" /></div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>{isNew ? "Numero" : "Nouveau numero"}</label>
+              <input type="text" value={form.numero} onChange={(e) => f("numero", e.target.value)} onBlur={() => touch("numero")} placeholder="045/2026" style={borderErr(!!(touched["numero"] && !errNumero.valide))} />
+              {touched["numero"] && !errNumero.valide && <p style={styleErreur}>{errNumero.erreur}</p>}
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Date</label>
+              <input type="text" value={form.date} onChange={(e) => f("date", e.target.value)} onBlur={() => touch("date")} placeholder="AAAA-MM-JJ" style={borderErr(!!(touched["date"] && !errDate.valide))} />
+              {touched["date"] && !errDate.valide && <p style={styleErreur}>{errDate.erreur}</p>}
+            </div>
           </div>
           {!isNew && refEnEdition.categorie === "delegation" && <div><label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Nouveau titulaire</label><input type="text" value={form.titulaire} onChange={(e) => f("titulaire", e.target.value)} /></div>}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div><label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Valide à partir du</label><input type="text" value={form.date_debut_validite} onChange={(e) => f("date_debut_validite", e.target.value)} placeholder="AAAA-MM-JJ" /></div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Valide a partir du</label>
+              <input type="text" value={form.date_debut_validite} onChange={(e) => f("date_debut_validite", e.target.value)} onBlur={() => touch("date_debut_validite")} placeholder="AAAA-MM-JJ" style={borderErr(!!(touched["date_debut_validite"] && !errDateDebut.valide))} />
+              {touched["date_debut_validite"] && !errDateDebut.valide && <p style={styleErreur}>{errDateDebut.erreur}</p>}
+            </div>
             <div><label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Expire le (facultatif)</label><input type="text" value={form.date_fin_validite} onChange={(e) => f("date_fin_validite", e.target.value)} placeholder="AAAA-MM-JJ" /></div>
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 7, marginTop: 16 }}>
           <button className="btn-secondary" onClick={onCancel} style={{ fontSize: 12 }}>Annuler</button>
-          <button className="btn-primary" onClick={handleSave} style={{ fontSize: 12 }}><Check size={12} />{isNew ? "Ajouter" : "Enregistrer"}</button>
+          <button className="btn-primary" onClick={handleSave} disabled={!formValide} style={{ fontSize: 12, background: formValide ? "#1E3A5F" : "#D8D5C8" }}><Check size={12} />{isNew ? "Ajouter" : "Enregistrer"}</button>
         </div>
       </div>
     </Modal>
