@@ -13,4 +13,6 @@ export const ROUTES = {
   admin: "/admin",
   faq: "/faq",
   login: "/login",
+  cartePublique: "/carte-publique",
+  flux: "/flux",
 } as const;
