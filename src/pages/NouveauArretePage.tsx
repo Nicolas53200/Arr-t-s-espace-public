@@ -379,6 +379,7 @@ export default function NouveauArretePage() {
           )}
           <CarteDessin
             troncons={phaseActuelle.troncons}
+            rueInitiale={(valeurs[champsAdresse?.id ?? ""] as string) || ""}
             onAdd={(t) => {
               setPhases((prev) => prev.map((ph, i) =>
                 i !== phaseActive ? ph : { ...ph, troncons: [...ph.troncons, t] }
