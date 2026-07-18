@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, Check, Plus, X, Layers, Flag, Edit2, RefreshCw,
-  FileText, MapPin, Home, Map, AlertTriangle,
+  FileText, MapPin, Home, Map,
 } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
@@ -13,9 +13,10 @@ import { AUJOURD_HUI } from "@/config/constants";
 import { TYPES_ARRETE } from "@/data/types-arrete";
 import { TYPES_IMPACT } from "@/data/types-impact";
 import { VOIES } from "@/data/voies";
-import { couleurImpact, resoudreTroncons } from "@/lib/voie";
+import { resoudreTroncons } from "@/lib/voie";
 import { genNum } from "@/lib/arrete";
 import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
+import CarteDessin from "@/components/carte/CarteDessin";
 import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { validerChamp } from "@/lib/validation";
@@ -126,7 +127,6 @@ export default function NouveauArretePage() {
 
   const champsAdresse = useMemo(() => typeArrete?.champs.find((c) => c.type === "adresse"), [typeArrete]);
   const phaseActuelle = phases[phaseActive] || { troncons: [] as Troncon[] };
-  const tronconIdsActifs = new Set(phaseActuelle.troncons.map((t) => t.voie_id));
   const totalTroncons = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.voie_id)))].length;
 
   function allerFormulaire(t: TypeArrete) {
@@ -185,23 +185,6 @@ export default function NouveauArretePage() {
     setEtape(3);
   }
 
-  function toggleTroncon(vid: string) {
-    setPhases((prev) => prev.map((ph, i) => {
-      if (i !== phaseActive) return ph;
-      const ex = ph.troncons.find((t) => t.voie_id === vid);
-      if (ex) return { ...ph, troncons: ph.troncons.filter((t) => t.voie_id !== vid) };
-      return { ...ph, troncons: [...ph.troncons, { voie_id: vid, impact: "circulation_interdite" as CodeImpact, segment_debut: "", segment_fin: "", origine: "manuel" as const }] };
-    }));
-  }
-
-  function setImpactTroncon(vid: string, impact: string) {
-    setPhases((prev) => prev.map((ph, i) => i !== phaseActive ? ph : { ...ph, troncons: ph.troncons.map((t) => t.voie_id === vid ? { ...t, impact: impact as CodeImpact } : t) }));
-  }
-
-  function setSegTroncon(vid: string, f: string, v: string) {
-    setPhases((prev) => prev.map((ph, i) => i !== phaseActive ? ph : { ...ph, troncons: ph.troncons.map((t) => t.voie_id === vid ? { ...t, [f]: v } : t) }));
-  }
-
   function ajouterPhase() {
     const id = phases.length + 1;
     setPhases((prev) => [...prev, { id, label: `Phase ${id}`, date_debut: "", date_fin: "", localisation: "", troncons: [] }]);
@@ -220,7 +203,7 @@ export default function NouveauArretePage() {
 
   function publierArrete() {
     const num = genNum(typeArrete!.suffixe, nextIdx);
-    const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];
+    const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.label || VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];
     const tronconsFlatMap = phases.flatMap((ph) => ph.troncons);
     if (arreteExistant) {
       const h = { version: (arreteExistant.versions.length) + 1, date: AUJOURD_HUI.toISOString().split("T")[0]!, auteur: "M. Lefèvre", motif: motifModification || "Modification", titre: arreteExistant.titre };
@@ -381,64 +364,37 @@ export default function NouveauArretePage() {
         </div>
       )}
 
-      {/* Etape 2 : voies */}
+      {/* Etape 2 : voies — editeur cartographique */}
       {etape === 2 && typeArrete && !publie && (
         <div>
           <h2 className="fd" style={{ fontSize: 20, marginBottom: 4 }}>Voies & impacts</h2>
-          <p style={{ color: "#6B6A60", fontSize: 12, marginBottom: 10 }}>Cliquez pour selectionner ou retirer un troncon.</p>
+          <p style={{ color: "#6B6A60", fontSize: 12, marginBottom: 10 }}>Tracez les rues ou dessinez des zones directement sur la carte.</p>
           {typeArrete.multi_phases && (
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
               {phases.map((ph, i) => <button key={ph.id} onClick={() => setPhaseActive(i)} className={`phase-tab${phaseActive === i ? " active" : ""}`} style={{ padding: "4px 10px", fontSize: 11 }}>{ph.label} · {ph.troncons.length} voie{ph.troncons.length !== 1 ? "s" : ""}</button>)}
             </div>
           )}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 290px", gap: 14 }}>
-            <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 13 }}>
-              <svg viewBox="0 0 360 340" style={{ width: "100%", height: "auto", maxHeight: 420 }}>
-                <rect width="360" height="340" fill="#F4F2EC" />
-                {VOIES.map((v) => {
-                  const troncon = phaseActuelle.troncons.find((t) => t.voie_id === v.id);
-                  const sel = !!troncon, coul = sel ? couleurImpact(troncon!.impact) : "#C9C6BA", larg = sel ? 7 : 3;
-                  return v.isZone
-                    ? <path key={v.id} d={v.path} className="tr-voie" fill={sel ? `${coul}33` : "#C9C6BA22"} stroke={coul} strokeWidth={larg} onClick={() => toggleTroncon(v.id)} />
-                    : <path key={v.id} d={v.path} className="tr-voie" fill="none" stroke={coul} strokeWidth={larg} strokeLinecap="round" onClick={() => toggleTroncon(v.id)} />;
-                })}
-              </svg>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", marginTop: 8 }}>
-                {TYPES_IMPACT.map((ti) => <span key={ti.code} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "#6B6A60" }}><span style={{ width: 12, height: 3, background: ti.couleur, borderRadius: 2, display: "inline-block" }} />{ti.label}</span>)}
-              </div>
-            </div>
-            <div>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6B6A60", margin: "0 0 6px" }}>Selectionnees ({phaseActuelle.troncons.length})</p>
-              {touchedPhases[`${phaseActive}_troncons`] && erreursPhases[phaseActive]?.["troncons"] && (
-                <p style={styleErreur}>{erreursPhases[phaseActive]?.["troncons"]}</p>
-              )}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
-                {phaseActuelle.troncons.map((t) => {
-                  const v = VOIES.find((x) => x.id === t.voie_id);
-                  return (
-                    <div key={t.voie_id} style={{ background: "#FFFFFF", border: "1px solid #E4E1D6", borderRadius: 5, padding: "8px 10px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: couleurImpact(t.impact), flexShrink: 0 }} />{v?.nom}</span>
-                        <button onClick={() => toggleTroncon(t.voie_id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#A6A399" }}><X size={11} /></button>
-                      </div>
-                      <select value={t.impact} onChange={(e) => setImpactTroncon(t.voie_id, e.target.value)} style={{ marginBottom: 4, fontSize: 11 }}>{TYPES_IMPACT.map((ti) => <option key={ti.code} value={ti.code}>{ti.label}</option>)}</select>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
-                        <input type="text" placeholder="Debut" value={t.segment_debut || ""} onChange={(e) => setSegTroncon(t.voie_id, "segment_debut", e.target.value)} style={{ fontSize: 10, padding: "3px 5px" }} />
-                        <input type="text" placeholder="Fin" value={t.segment_fin || ""} onChange={(e) => setSegTroncon(t.voie_id, "segment_fin", e.target.value)} style={{ fontSize: 10, padding: "3px 5px" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-                {phaseActuelle.troncons.length === 0 && <p style={{ fontSize: 11, color: "#A6A399", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={11} />Cliquez sur la carte</p>}
-              </div>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6B6A60", margin: "0 0 4px" }}>Autres voies</p>
-              {VOIES.filter((v) => !tronconIdsActifs.has(v.id)).map((v) => (
-                <button key={v.id} onClick={() => toggleTroncon(v.id)} style={{ display: "flex", alignItems: "center", gap: 5, width: "100%", textAlign: "left", fontSize: 11, color: "#6B6A60", background: "none", border: "none", cursor: "pointer", padding: "2px 0" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", border: "1px solid #C9C6BA", flexShrink: 0 }} />{v.nom}
-                </button>
-              ))}
-            </div>
-          </div>
+          {touchedPhases[`${phaseActive}_troncons`] && erreursPhases[phaseActive]?.["troncons"] && (
+            <p style={styleErreur}>{erreursPhases[phaseActive]?.["troncons"]}</p>
+          )}
+          <CarteDessin
+            troncons={phaseActuelle.troncons}
+            onAdd={(t) => {
+              setPhases((prev) => prev.map((ph, i) =>
+                i !== phaseActive ? ph : { ...ph, troncons: [...ph.troncons, t] }
+              ));
+            }}
+            onRemove={(idx) => {
+              setPhases((prev) => prev.map((ph, i) =>
+                i !== phaseActive ? ph : { ...ph, troncons: ph.troncons.filter((_, j) => j !== idx) }
+              ));
+            }}
+            onUpdateImpact={(idx, impact) => {
+              setPhases((prev) => prev.map((ph, i) =>
+                i !== phaseActive ? ph : { ...ph, troncons: ph.troncons.map((t, j) => j === idx ? { ...t, impact } : t) }
+              ));
+            }}
+          />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
             <button className="btn-ghost" onClick={() => setEtape(1)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
             <button
@@ -469,8 +425,9 @@ export default function NouveauArretePage() {
                 <div key={ph.id} style={{ marginBottom: 7 }}>
                   {phases.length > 1 && <p style={{ fontSize: 11, fontWeight: 600, color: "#1E3A5F", margin: "0 0 3px" }}>{ph.label}</p>}
                   {ph.troncons.map((t) => {
-                    const v = VOIES.find((x) => x.id === t.voie_id), ti = TYPES_IMPACT.find((x) => x.code === t.impact);
-                    return <p key={t.voie_id} style={{ margin: "1px 0", fontSize: 11, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: ti?.couleur, flexShrink: 0 }} /><strong>{v?.nom}</strong> · {ti?.label}</p>;
+                    const nom = t.label || VOIES.find((x) => x.id === t.voie_id)?.nom || t.voie_id;
+                    const ti = TYPES_IMPACT.find((x) => x.code === t.impact);
+                    return <p key={t.voie_id} style={{ margin: "1px 0", fontSize: 11, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: ti?.couleur, flexShrink: 0 }} /><strong>{nom}</strong> · {ti?.label}</p>;
                   })}
                 </div>
               ))}
@@ -487,7 +444,7 @@ export default function NouveauArretePage() {
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn-secondary" onClick={() => {
                 const tronconsFlatMap = phases.flatMap((ph) => ph.troncons);
-                const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];
+                const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.label || VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];
                 const apercu: Arrete = {
                   id: "apercu",
                   numero: arreteExistant ? arreteExistant.numero : genNum(typeArrete!.suffixe, nextIdx),
