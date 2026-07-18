@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, CheckCircle2, Map, History, Archive, Shield, Clock, ChevronRight } from "lucide-react";
+import { Plus, CheckCircle2, Map, History, Archive, Shield, Clock, ChevronRight, Globe, ExternalLink } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -83,6 +83,57 @@ export default function AccueilPage() {
           </div>
         </div>
       )}
+
+      {/* Carte publique & flux */}
+      <div style={{
+        marginTop: 36,
+        padding: "20px 24px",
+        background: "#EBF0F7",
+        borderRadius: 10,
+        border: "1px solid #C8D6E5",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <Globe size={20} color="#1E3A5F" />
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#1C1F1B" }}>
+            Carte publique inter-communes
+          </h3>
+        </div>
+        <p style={{ fontSize: 13, color: "#6B6A60", margin: "0 0 14px", lineHeight: 1.5 }}>
+          Visualisez les arretes actifs de toutes les communes du departement sur une carte partagee.
+          Accessible aux services d'urgence, GPS et citoyens sans authentification.
+        </p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <a
+            href="/carte-publique"
+            target="_blank"
+            rel="noopener"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "9px 18px", borderRadius: 6,
+              background: "#1E3A5F", color: "#FAFAF7",
+              fontSize: 13, fontWeight: 500, textDecoration: "none",
+              fontFamily: "'IBM Plex Sans', sans-serif",
+            }}
+          >
+            <Map size={14} /> Voir la carte <ExternalLink size={12} />
+          </a>
+          <a
+            href="/flux"
+            target="_blank"
+            rel="noopener"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "9px 18px", borderRadius: 6,
+              background: "#FFFFFF", color: "#1E3A5F",
+              border: "1px solid #1E3A5F",
+              fontSize: 13, fontWeight: 500, textDecoration: "none",
+              fontFamily: "'IBM Plex Sans', sans-serif",
+            }}
+          >
+            <Globe size={14} /> Flux GeoJSON / RSS <ExternalLink size={12} />
+          </a>
+        </div>
+      </div>
 
       {modalAction?.type === "abroger" && (
         <ModalAbrogation arrete={modalAction.arrete} onOk={(m) => abrogerArrete(modalAction.arrete, m)} onCancel={() => setModalAction(null)} />
