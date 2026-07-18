@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { MapContainer, TileLayer, Polyline, Polygon, Marker, Popup, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 import { Pencil, Pentagon, MousePointer, Trash2, Check, Search, X, MapPin, Undo2, Zap, AlertTriangle, ArrowRightLeft } from "lucide-react";
@@ -31,6 +31,7 @@ interface Props {
   onRemove: (idx: number) => void;
   onUpdateImpact: (idx: number, impact: CodeImpact) => void;
   centre?: [number, number];
+  rueInitiale?: string;
 }
 
 const IMPACT_COULEURS: Record<string, string> = {};
@@ -365,7 +366,7 @@ function AlertesPanel({ troncons }: { troncons: Troncon[] }) {
   );
 }
 
-export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact, centre }: Props) {
+export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact, centre, rueInitiale }: Props) {
   const [mode, setMode] = useState<DrawMode>("select");
   const [currentImpact, setCurrentImpact] = useState<CodeImpact>("circulation_interdite");
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
@@ -413,6 +414,25 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
     };
     onAdd(t);
   }, [currentImpact, onAdd]);
+
+  const initialTraceDone = useRef(false);
+  useEffect(() => {
+    if (!rueInitiale || rueInitiale.length < 3 || initialTraceDone.current || troncons.length > 0) return;
+    initialTraceDone.current = true;
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(rueInitiale + ", France")}`)
+      .then((r) => r.json())
+      .then((data: NominatimResult[]) => {
+        if (!data[0]) return;
+        const r = data[0];
+        const coords = extractLineCoords(r.geojson);
+        const label = r.display_name.split(",")[0] ?? rueInitiale;
+        if (coords && coords.length >= 2) {
+          handleAutoTrace(coords, label);
+        }
+        setSearchTarget([parseFloat(r.lat), parseFloat(r.lon)]);
+      })
+      .catch(() => {});
+  }, [rueInitiale, troncons.length, handleAutoTrace]);
 
   const existingShapes = useMemo(() => {
     return troncons.filter((t) => t.coordonnees && t.coordonnees.length >= 2);
