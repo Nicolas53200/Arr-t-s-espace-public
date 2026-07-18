@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Filter, Eye, Clock, X, Calendar, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Filter, Eye, Clock, X, Calendar, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Globe, ExternalLink } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { AUJOURD_HUI } from "@/config/constants";
 import { COULEUR_TYPE } from "@/config/theme";
@@ -82,6 +82,24 @@ export default function CartePage() {
         <button className={`filtre-btn${showFuturs ? " actif" : ""}`} style={{ "--fc": "#6B7280" } as React.CSSProperties}
           onClick={() => setShowFuturs((v) => !v)}><Clock size={11} />{showFuturs ? "Futurs visibles" : "Futurs masqués"}</button>
       </div>
+
+      <a
+        href="/carte-publique"
+        target="_blank"
+        rel="noopener"
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "10px 16px", marginBottom: 14,
+          background: "#EBF0F7", borderRadius: 8,
+          border: "1px solid #C8D6E5",
+          textDecoration: "none", color: "#1E3A5F",
+          fontSize: 12, fontWeight: 500,
+        }}
+      >
+        <Globe size={14} />
+        Voir la carte publique inter-communes (toutes les communes du departement)
+        <ExternalLink size={12} style={{ marginLeft: "auto" }} />
+      </a>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 18, alignItems: "start" }}>
         <CarteLeaflet
