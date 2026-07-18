@@ -1,7 +1,7 @@
-import { useState, useMemo, useCallback } from "react";
-import { MapContainer, TileLayer, GeoJSON, Marker, Popup } from "react-leaflet";
+import { useState, useMemo, useCallback, useRef } from "react";
+import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
-import { Globe, Filter, Rss, FileJson, ChevronDown, AlertTriangle } from "lucide-react";
+import { Globe, Filter, Rss, FileJson, ChevronDown, AlertTriangle, Search, X, MapPin } from "lucide-react";
 import { ARRETES_PUBLICS, COMMUNES, type ArretePublic } from "@/data/communes-publiques";
 import type { Feature, Geometry, GeoJsonProperties, FeatureCollection } from "geojson";
 
@@ -37,10 +37,115 @@ function communeIcon(count: number) {
   });
 }
 
+interface SearchResult {
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+
+function MapFlyTo({ position, zoom }: { position: [number, number] | null; zoom: number }) {
+  const map = useMap();
+  useMemo(() => {
+    if (position) map.flyTo(position, zoom, { duration: 1.2 });
+  }, [map, position, zoom]);
+  return null;
+}
+
+function SearchBar({ onSelect }: { onSelect: (lat: number, lng: number, label: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function doSearch(q: string) {
+    if (q.length < 3) { setResults([]); setOpen(false); return; }
+    setSearching(true);
+    const bounded = `${q}, Morbihan, France`;
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(bounded)}`)
+      .then((r) => r.json())
+      .then((data: SearchResult[]) => {
+        setResults(data);
+        setOpen(data.length > 0);
+      })
+      .catch(() => setResults([]))
+      .finally(() => setSearching(false));
+  }
+
+  function handleChange(value: string) {
+    setQuery(value);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => doSearch(value), 400);
+  }
+
+  function pick(r: SearchResult) {
+    onSelect(parseFloat(r.lat), parseFloat(r.lon), r.display_name);
+    setQuery(r.display_name.split(",")[0] ?? "");
+    setOpen(false);
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        background: "#FAFAF7", border: "1px solid #E4E1D6", borderRadius: 6,
+        padding: "6px 10px",
+      }}>
+        <Search size={14} color="#6B6A60" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder="Rechercher une rue, adresse..."
+          style={{
+            flex: 1, border: "none", outline: "none", background: "transparent",
+            fontSize: 12, color: "#1C1F1B", fontFamily: "'IBM Plex Sans', sans-serif",
+          }}
+        />
+        {query && (
+          <button onClick={() => { setQuery(""); setResults([]); setOpen(false); }} style={{
+            border: "none", background: "none", cursor: "pointer", padding: 0, display: "flex",
+          }}>
+            <X size={12} color="#6B6A60" />
+          </button>
+        )}
+        {searching && <span style={{ fontSize: 10, color: "#6B6A60" }}>...</span>}
+      </div>
+      {open && results.length > 0 && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
+          background: "#FFFFFF", border: "1px solid #E4E1D6", borderTop: "none",
+          borderRadius: "0 0 6px 6px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          maxHeight: 200, overflowY: "auto",
+        }}>
+          {results.map((r, i) => (
+            <button
+              key={i}
+              onClick={() => pick(r)}
+              style={{
+                display: "flex", alignItems: "flex-start", gap: 6, width: "100%",
+                padding: "8px 10px", border: "none", borderBottom: "1px solid #F0EDE4",
+                background: "transparent", cursor: "pointer", textAlign: "left",
+                fontFamily: "'IBM Plex Sans', sans-serif",
+              }}
+            >
+              <MapPin size={12} color="#1E3A5F" style={{ flexShrink: 0, marginTop: 2 }} />
+              <span style={{ fontSize: 11, color: "#1C1F1B", lineHeight: 1.3 }}>
+                {r.display_name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CartePubliquePage() {
   const [communeFiltre, setCommuneFiltre] = useState<string | null>(null);
   const [impactFiltre, setImpactFiltre] = useState<string | null>(null);
   const [panneauOuvert, setPanneauOuvert] = useState(true);
+  const [searchTarget, setSearchTarget] = useState<{ pos: [number, number]; label: string } | null>(null);
 
   const arretesFiltres = useMemo(() => {
     return ARRETES_PUBLICS.filter((a) => {
@@ -185,6 +290,34 @@ export default function CartePubliquePage() {
           {panneauOuvert && (
             <>
               {/* Filters */}
+              <div style={{ padding: "16px 18px", borderBottom: "1px solid #F0EDE4" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                  <Search size={14} color="#1E3A5F" />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#1C1F1B" }}>Rechercher une rue</span>
+                </div>
+                <SearchBar onSelect={(lat, lng, label) => {
+                  setSearchTarget({ pos: [lat, lng], label });
+                  setCommuneFiltre(null);
+                }} />
+                {searchTarget && (
+                  <div style={{
+                    marginTop: 8, padding: "6px 10px", background: "#EBF0F7",
+                    borderRadius: 6, display: "flex", alignItems: "center", gap: 6,
+                    fontSize: 10, color: "#1E3A5F",
+                  }}>
+                    <MapPin size={10} />
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {searchTarget.label.split(",")[0]}
+                    </span>
+                    <button onClick={() => setSearchTarget(null)} style={{
+                      border: "none", background: "none", cursor: "pointer", padding: 0, display: "flex",
+                    }}>
+                      <X size={10} color="#1E3A5F" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div style={{ padding: "16px 18px", borderBottom: "1px solid #F0EDE4" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
                   <Filter size={14} color="#1E3A5F" />
@@ -377,6 +510,29 @@ export default function CartePubliquePage() {
                 style={style}
                 onEachFeature={onEachFeature}
               />
+            )}
+
+            <MapFlyTo position={searchTarget?.pos ?? null} zoom={17} />
+
+            {searchTarget && (
+              <Marker
+                position={searchTarget.pos}
+                icon={L.divIcon({
+                  className: "",
+                  html: `<div style="
+                    width:12px;height:12px;border-radius:50%;background:#2563EB;
+                    border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.35);
+                  "></div>`,
+                  iconSize: [18, 18],
+                  iconAnchor: [9, 9],
+                })}
+              >
+                <Popup>
+                  <div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 12 }}>
+                    {searchTarget.label.split(",").slice(0, 2).join(",")}
+                  </div>
+                </Popup>
+              </Marker>
             )}
           </MapContainer>
 
