@@ -53,6 +53,7 @@ export const COMMUNES: CommuneInfo[] = [
 
 export const ARRETES_PUBLICS: ArretePublic[] = [
   // --- SAINT-AVOYE (quartier ouest de Vannes) ---
+  // Coordonnées recalées depuis les labels visibles sur tuiles OSM
   {
     id: "pub_sa_1",
     numero: "AR-2026-0142-SPO",
@@ -65,19 +66,18 @@ export const ARRETES_PUBLICS: ArretePublic[] = [
     impact_label: "Circulation interdite",
     commune: "Saint-Avoye",
     commune_id: "tenant_saint_avoye",
-    // Rue Emile Burgault (direction est-ouest, quartier Saint-Avoye)
     coordonnees: [
-      [-2.7632, 47.6578], [-2.7628, 47.6578], [-2.7624, 47.6577],
-      [-2.7620, 47.6577], [-2.7616, 47.6576], [-2.7612, 47.6576],
-      [-2.7608, 47.6575], [-2.7604, 47.6575], [-2.7600, 47.6575],
-      [-2.7596, 47.6575], [-2.7593, 47.6576], [-2.7590, 47.6576],
+      [-2.76350, 47.65780], [-2.76300, 47.65775], [-2.76250, 47.65770],
+      [-2.76200, 47.65765], [-2.76150, 47.65760], [-2.76100, 47.65755],
+      [-2.76050, 47.65750], [-2.76000, 47.65745], [-2.75950, 47.65740],
+      [-2.75900, 47.65735],
     ],
     geometrie_type: "LineString",
   },
   {
     id: "pub_sa_2",
     numero: "AR-2026-0138-TRX",
-    titre: "Refection de chaussee — Rue Billault",
+    titre: "Refection de chaussee — Rue de la Loi",
     type_label: "Travaux",
     type_code: "travaux",
     date_debut: "2026-06-20",
@@ -86,13 +86,11 @@ export const ARRETES_PUBLICS: ArretePublic[] = [
     impact_label: "Circulation interdite",
     commune: "Saint-Avoye",
     commune_id: "tenant_saint_avoye",
-    // Rue Billault (nord-sud, ouest de Place des Lices)
     coordonnees: [
-      [-2.7610, 47.6590], [-2.7611, 47.6588], [-2.7612, 47.6586],
-      [-2.7612, 47.6584], [-2.7613, 47.6582], [-2.7613, 47.6580],
-      [-2.7613, 47.6578], [-2.7612, 47.6576], [-2.7611, 47.6574],
-      [-2.7610, 47.6572], [-2.7609, 47.6570], [-2.7608, 47.6568],
-      [-2.7607, 47.6566],
+      [-2.76300, 47.65700], [-2.76295, 47.65680], [-2.76290, 47.65660],
+      [-2.76285, 47.65640], [-2.76280, 47.65620], [-2.76275, 47.65600],
+      [-2.76270, 47.65580], [-2.76265, 47.65560], [-2.76260, 47.65540],
+      [-2.76255, 47.65520],
     ],
     geometrie_type: "LineString",
   },
@@ -108,17 +106,16 @@ export const ARRETES_PUBLICS: ArretePublic[] = [
     impact_label: "Deviation",
     commune: "Saint-Avoye",
     commune_id: "tenant_saint_avoye",
-    // Rue Le Hellec (est-ouest sous Place des Lices)
     coordonnees: [
-      [-2.7622, 47.6568], [-2.7618, 47.6568], [-2.7614, 47.6567],
-      [-2.7610, 47.6567], [-2.7606, 47.6567], [-2.7602, 47.6566],
-      [-2.7598, 47.6566], [-2.7594, 47.6566], [-2.7590, 47.6565],
-      [-2.7586, 47.6565],
+      [-2.76400, 47.65600], [-2.76350, 47.65600], [-2.76300, 47.65600],
+      [-2.76250, 47.65598], [-2.76200, 47.65596], [-2.76150, 47.65594],
+      [-2.76100, 47.65592], [-2.76050, 47.65590], [-2.76000, 47.65588],
     ],
     geometrie_type: "LineString",
   },
 
   // --- VANNES (centre-ville intra-muros) ---
+  // Coordonnées recalées depuis les labels visibles sur tuiles OSM
   {
     id: "pub_va_1",
     numero: "VA-2026-0087-TRX",
@@ -131,13 +128,12 @@ export const ARRETES_PUBLICS: ArretePublic[] = [
     impact_label: "Circulation interdite",
     commune: "Vannes",
     commune_id: "tenant_vannes",
-    // Rue du Mené : axe nord-sud dans la vieille ville, de Place Henri IV vers le nord
     coordonnees: [
-      [-2.7571, 47.6556], [-2.7572, 47.6558], [-2.7573, 47.6560],
-      [-2.7574, 47.6562], [-2.7575, 47.6564], [-2.7576, 47.6566],
-      [-2.7576, 47.6568], [-2.7577, 47.6570], [-2.7577, 47.6572],
-      [-2.7578, 47.6574], [-2.7578, 47.6576], [-2.7578, 47.6578],
-      [-2.7579, 47.6580], [-2.7579, 47.6582], [-2.7580, 47.6584],
+      [-2.75870, 47.65870], [-2.75865, 47.65850], [-2.75860, 47.65830],
+      [-2.75855, 47.65810], [-2.75850, 47.65790], [-2.75845, 47.65770],
+      [-2.75840, 47.65750], [-2.75838, 47.65730], [-2.75835, 47.65710],
+      [-2.75832, 47.65690], [-2.75830, 47.65670], [-2.75828, 47.65650],
+      [-2.75825, 47.65630], [-2.75820, 47.65610], [-2.75815, 47.65590],
     ],
     geometrie_type: "LineString",
   },
@@ -153,13 +149,12 @@ export const ARRETES_PUBLICS: ArretePublic[] = [
     impact_label: "Zone reservee",
     commune: "Vannes",
     commune_id: "tenant_vannes",
-    // Place des Lices : rectangle allonge nord-sud, ouest de la vieille ville
     coordonnees: [
-      [-2.7598, 47.6580], [-2.7592, 47.6581], [-2.7586, 47.6581],
-      [-2.7583, 47.6580], [-2.7582, 47.6577], [-2.7582, 47.6574],
-      [-2.7583, 47.6571], [-2.7586, 47.6570], [-2.7592, 47.6570],
-      [-2.7598, 47.6571], [-2.7600, 47.6574], [-2.7600, 47.6577],
-      [-2.7598, 47.6580],
+      [-2.76080, 47.65710], [-2.76020, 47.65720], [-2.75960, 47.65720],
+      [-2.75920, 47.65710], [-2.75900, 47.65680], [-2.75900, 47.65650],
+      [-2.75920, 47.65620], [-2.75960, 47.65610], [-2.76020, 47.65610],
+      [-2.76080, 47.65620], [-2.76100, 47.65650], [-2.76100, 47.65680],
+      [-2.76080, 47.65710],
     ],
     geometrie_type: "Polygon",
   },
@@ -175,12 +170,11 @@ export const ARRETES_PUBLICS: ArretePublic[] = [
     impact_label: "Stationnement interdit",
     commune: "Vannes",
     commune_id: "tenant_vannes",
-    // Rue des Chanoines : parallele a Rue du Mene, cote est
     coordonnees: [
-      [-2.7564, 47.6560], [-2.7563, 47.6562], [-2.7562, 47.6564],
-      [-2.7561, 47.6566], [-2.7560, 47.6568], [-2.7559, 47.6570],
-      [-2.7558, 47.6572], [-2.7558, 47.6574], [-2.7557, 47.6576],
-      [-2.7556, 47.6578], [-2.7555, 47.6580],
+      [-2.75730, 47.65820], [-2.75725, 47.65800], [-2.75720, 47.65780],
+      [-2.75715, 47.65760], [-2.75710, 47.65740], [-2.75705, 47.65720],
+      [-2.75700, 47.65700], [-2.75695, 47.65680], [-2.75690, 47.65660],
+      [-2.75685, 47.65640], [-2.75680, 47.65620],
     ],
     geometrie_type: "LineString",
   },
@@ -196,11 +190,11 @@ export const ARRETES_PUBLICS: ArretePublic[] = [
     impact_label: "Deviation",
     commune: "Vannes",
     commune_id: "tenant_vannes",
-    // Avenue Victor Hugo : direction nord-sud, ouest du centre
     coordonnees: [
-      [-2.7604, 47.6596], [-2.7604, 47.6594], [-2.7603, 47.6592],
-      [-2.7602, 47.6590], [-2.7601, 47.6588], [-2.7600, 47.6586],
-      [-2.7599, 47.6584], [-2.7598, 47.6582],
+      [-2.76150, 47.65920], [-2.76140, 47.65900], [-2.76130, 47.65880],
+      [-2.76120, 47.65860], [-2.76110, 47.65840], [-2.76100, 47.65820],
+      [-2.76090, 47.65800], [-2.76080, 47.65780], [-2.76070, 47.65760],
+      [-2.76060, 47.65740],
     ],
     geometrie_type: "LineString",
   },
