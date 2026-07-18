@@ -25,6 +25,8 @@ import TableauBordPage from "@/pages/TableauBordPage";
 import JournalPage from "@/pages/JournalPage";
 import AdminPage from "@/pages/AdminPage";
 import FaqPage from "@/pages/FaqPage";
+import CartePubliquePage from "@/pages/CartePubliquePage";
+import FluxPage from "@/pages/FluxPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 import "@/styles/global.css";
 import "leaflet/dist/leaflet.css";
@@ -62,6 +64,8 @@ export default function App() {
                         <Route path="bienvenue" element={<LandingPage />} />
                         <Route path="super-admin" element={<SuperAdminPage />} />
                         <Route path="login" element={<LoginPage />} />
+                        <Route path="carte-publique" element={<CartePubliquePage />} />
+                        <Route path="flux" element={<FluxPage />} />
 
                         {/* Protected routes */}
                         <Route element={<RouteProtegee />}>
