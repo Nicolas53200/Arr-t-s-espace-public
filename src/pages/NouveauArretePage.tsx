@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, Check, Plus, X, Layers, Flag, Edit2, RefreshCw,
@@ -57,14 +57,39 @@ export default function NouveauArretePage() {
   const [typeArrete, setTypeArrete] = useState<TypeArrete | null>(typeInitial ?? null);
   const [valeurs, setValeurs] = useState<Record<string, string | boolean>>({});
   const [titreArrete, setTitreArrete] = useState(arreteExistant?.titre ?? "");
-  const [phases, setPhases] = useState<Phase[]>([{ id: 1, label: typeInitial?.multi_phases ? "Phase 1" : "Impact principal", date_debut: "", date_fin: "", localisation: "", troncons: [] }]);
+  const [phases, setPhases] = useState<Phase[]>(() => {
+    if (arreteExistant) {
+      return [{
+        id: 1,
+        label: typeInitial?.multi_phases ? "Phase 1" : "Impact principal",
+        date_debut: arreteExistant.date_debut,
+        date_fin: arreteExistant.date_fin,
+        localisation: "",
+        troncons: arreteExistant.troncons,
+      }];
+    }
+    return [{ id: 1, label: typeInitial?.multi_phases ? "Phase 1" : "Impact principal", date_debut: "", date_fin: "", localisation: "", troncons: [] }];
+  });
   const [phaseActive, setPhaseActive] = useState(0);
   const [publie, setPublie] = useState(false);
   const [dernierArrete, setDernierArrete] = useState<{ numero: string; mode: string; titre: string } | null>(null);
   const [motifModification, setMotifModification] = useState("");
-  const [voiesDeclarees, setVoiesDeclarees] = useState<VoieDeclaree[]>([]);
+  const [voiesDeclarees, setVoiesDeclarees] = useState<VoieDeclaree[]>(() => {
+    if (arreteExistant) {
+      return arreteExistant.troncons.map((t, i) => ({
+        id: i + 1,
+        nom: t.label || t.voie_id,
+        touteRue: !t.segment_debut && !t.segment_fin,
+        debut: t.segment_debut ?? "",
+        fin: t.segment_fin ?? "",
+        impact: t.impact,
+      }));
+    }
+    return [];
+  });
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const [nextIdx] = useState(156);
+  const nextIdx = useMemo(() => arretes.length + 150, [arretes.length]);
+  const phaseIdCounter = useRef(1);
 
   /* ---- Validation state ---- */
   const [touchedEtape1, setTouchedEtape1] = useState<Record<string, boolean>>({});
@@ -142,11 +167,13 @@ export default function NouveauArretePage() {
     setTypeArrete(t);
     setValeurs({});
     setTitreArrete("");
+    phaseIdCounter.current = 1;
     setPhases([{ id: 1, label: t.multi_phases ? "Phase 1" : "Impact principal", date_debut: "", date_fin: "", localisation: "", troncons: [] }]);
     setPhaseActive(0);
     setTouchedEtape1({});
     setTouchedPhases({});
     setVoiesDeclarees([]);
+    setMotifModification("");
     setEtape(1);
   }
 
@@ -189,8 +216,9 @@ export default function NouveauArretePage() {
   }
 
   function ajouterPhase() {
-    const id = phases.length + 1;
-    setPhases((prev) => [...prev, { id, label: `Phase ${id}`, date_debut: "", date_fin: "", localisation: "", troncons: [] }]);
+    phaseIdCounter.current += 1;
+    const newId = phaseIdCounter.current;
+    setPhases((prev) => [...prev, { id: newId, label: `Phase ${prev.length + 1}`, date_debut: "", date_fin: "", localisation: "", troncons: [] }]);
     setPhaseActive(phases.length);
   }
 
@@ -512,10 +540,10 @@ export default function NouveauArretePage() {
               {phases.map((ph) => (
                 <div key={ph.id} style={{ marginBottom: 7 }}>
                   {phases.length > 1 && <p style={{ fontSize: 11, fontWeight: 600, color: "#1E3A5F", margin: "0 0 3px" }}>{ph.label}</p>}
-                  {ph.troncons.map((t) => {
+                  {ph.troncons.map((t, tIdx) => {
                     const nom = t.label || VOIES.find((x) => x.id === t.voie_id)?.nom || t.voie_id;
                     const ti = TYPES_IMPACT.find((x) => x.code === t.impact);
-                    return <p key={t.voie_id} style={{ margin: "1px 0", fontSize: 11, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: ti?.couleur, flexShrink: 0 }} /><strong>{nom}</strong> · {ti?.label}</p>;
+                    return <p key={`${t.voie_id}_${tIdx}`} style={{ margin: "1px 0", fontSize: 11, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: ti?.couleur, flexShrink: 0 }} /><strong>{nom}</strong> · {ti?.label}</p>;
                   })}
                 </div>
               ))}

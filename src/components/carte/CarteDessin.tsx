@@ -72,7 +72,7 @@ function midpointIcon() {
 
 function MapFlyTo({ position, zoom }: { position: [number, number] | null; zoom?: number }) {
   const map = useMap();
-  useMemo(() => {
+  useEffect(() => {
     if (position) map.flyTo(position, zoom ?? 17, { duration: 1 });
   }, [map, position, zoom]);
   return null;
@@ -127,6 +127,41 @@ function DrawHandler({
   );
 }
 
+function distSq(a: number[], b: number[]): number {
+  return (a[0]! - b[0]!) ** 2 + (a[1]! - b[1]!) ** 2;
+}
+
+function orderMultiLineSegments(segments: number[][][]): number[][] {
+  if (segments.length <= 1) return segments[0] ?? [];
+  const used = new Array(segments.length).fill(false) as boolean[];
+  const ordered: number[][] = [...segments[0]!];
+  used[0] = true;
+
+  for (let step = 1; step < segments.length; step++) {
+    let bestIdx = -1;
+    let bestDist = Infinity;
+    let bestReverse = false;
+    const tail = ordered[ordered.length - 1]!;
+
+    for (let i = 0; i < segments.length; i++) {
+      if (used[i]) continue;
+      const seg = segments[i]!;
+      const dStart = distSq(tail, seg[0]!);
+      const dEnd = distSq(tail, seg[seg.length - 1]!);
+      if (dStart < bestDist) { bestDist = dStart; bestIdx = i; bestReverse = false; }
+      if (dEnd < bestDist) { bestDist = dEnd; bestIdx = i; bestReverse = true; }
+    }
+
+    if (bestIdx === -1) break;
+    used[bestIdx] = true;
+    const seg = bestReverse ? [...segments[bestIdx]!].reverse() : segments[bestIdx]!;
+    const skip = distSq(tail, seg[0]!) < 0.000001 ? 1 : 0;
+    ordered.push(...seg.slice(skip));
+  }
+
+  return ordered;
+}
+
 function extractLineCoords(geojson: NominatimResult["geojson"]): [number, number][] | null {
   if (!geojson) return null;
   if (geojson.type === "LineString") {
@@ -135,7 +170,8 @@ function extractLineCoords(geojson: NominatimResult["geojson"]): [number, number
   if (geojson.type === "MultiLineString") {
     const lines = geojson.coordinates as number[][][];
     if (lines.length === 0) return null;
-    return lines.flat().map((c) => [c[0]!, c[1]!] as [number, number]);
+    const ordered = orderMultiLineSegments(lines);
+    return ordered.map((c) => [c[0]!, c[1]!] as [number, number]);
   }
   if (geojson.type === "Point") {
     const c = geojson.coordinates as number[];
@@ -208,9 +244,16 @@ function pointToSegmentDist(px: number, py: number, ax: number, ay: number, bx: 
 }
 
 function routePassesDansRue(route: [number, number][], blocked: [number, number][]): boolean {
-  if (blocked.length < 2) return false;
+  if (blocked.length === 0) return false;
   const seuil = 0.0003;
   let nbProches = 0;
+  if (blocked.length === 1) {
+    for (const rp of route) {
+      const d = Math.sqrt((rp[0] - blocked[0]![0]) ** 2 + (rp[1] - blocked[0]![1]) ** 2);
+      if (d < seuil) nbProches++;
+    }
+    return nbProches > 2;
+  }
   for (const rp of route) {
     for (let i = 0; i < blocked.length - 1; i++) {
       const dist = pointToSegmentDist(rp[0], rp[1], blocked[i]![0], blocked[i]![1], blocked[i + 1]![0], blocked[i + 1]![1]);
@@ -229,7 +272,11 @@ async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][
   const coords = blocked[0]!.coordonnees!;
   const start = coords[0]!;
   const end = coords[coords.length - 1]!;
-  const blockedInterior = coords.length > 2 ? coords.slice(1, -1) : coords;
+  const blockedInterior = coords.length > 4
+    ? coords.slice(Math.floor(coords.length * 0.2), Math.ceil(coords.length * 0.8))
+    : coords.length > 2
+      ? coords.slice(1, -1)
+      : [];
 
   try {
     const altUrl = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson&alternatives=3`;
@@ -543,8 +590,9 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
     if (rues.length === 0) return;
     initialTraceDone.current = true;
 
+    const timers: ReturnType<typeof setTimeout>[] = [];
     rues.forEach((rue, i) => {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(rue.nom + ", France")}`)
           .then((r) => r.json())
           .then((data: NominatimResult[]) => {
@@ -569,7 +617,9 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
           })
           .catch(() => {});
       }, i * 1100);
+      timers.push(timer);
     });
+    return () => { timers.forEach(clearTimeout); };
   }, [voiesInitiales, rueInitiale, onAdd]);
 
   const handleVertexDrag = useCallback((tIdx: number, ptIdx: number, lat: number, lng: number) => {
