@@ -199,6 +199,17 @@ async function detectAlertesAsync(troncons: Troncon[]): Promise<AlerteAdjacente[
   return alertes;
 }
 
+function routeIntersectsBlocked(route: [number, number][], blocked: [number, number][], threshold: number): boolean {
+  for (const rp of route) {
+    for (const bp of blocked) {
+      const dlng = rp[0] - bp[0];
+      const dlat = rp[1] - bp[1];
+      if (Math.sqrt(dlng * dlng + dlat * dlat) < threshold) return true;
+    }
+  }
+  return false;
+}
+
 async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][] | null> {
   const blocked = troncons.filter((t) =>
     t.impact === "circulation_interdite" && t.coordonnees && t.coordonnees.length >= 2
@@ -209,32 +220,47 @@ async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][
   const start = coords[0]!;
   const end = coords[coords.length - 1]!;
 
-  const offset = 0.002;
-  const midLng = (start[0] + end[0]) / 2;
-  const midLat = (start[1] + end[1]) / 2;
   const dx = end[0] - start[0];
   const dy = end[1] - start[1];
   const len = Math.sqrt(dx * dx + dy * dy);
-  const perpLng = midLng + (-dy / len) * offset;
-  const perpLat = midLat + (dx / len) * offset;
+  if (len === 0) return null;
 
-  try {
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${perpLng},${perpLat};${end[0]},${end[1]}?overview=full&geometries=geojson`;
-    const res = await fetch(osrmUrl);
-    const data = await res.json();
-    if (data.routes && data.routes[0]?.geometry?.coordinates) {
-      return data.routes[0].geometry.coordinates.map((c: number[]) => [c[0], c[1]] as [number, number]);
+  const midLng = (start[0] + end[0]) / 2;
+  const midLat = (start[1] + end[1]) / 2;
+
+  const offsets = [0.004, 0.006, 0.008];
+  const sides = [1, -1];
+
+  for (const offsetDist of offsets) {
+    for (const side of sides) {
+      const wpLng = midLng + (-dy / len) * offsetDist * side;
+      const wpLat = midLat + (dx / len) * offsetDist * side;
+
+      try {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${wpLng},${wpLat};${end[0]},${end[1]}?overview=full&geometries=geojson`;
+        const res = await fetch(osrmUrl);
+        const data = await res.json();
+        if (data.routes && data.routes[0]?.geometry?.coordinates) {
+          const route = data.routes[0].geometry.coordinates.map((c: number[]) => [c[0], c[1]] as [number, number]);
+          const threshold = len * 0.15;
+          const blockedMid = coords.slice(1, -1);
+          if (blockedMid.length === 0 || !routeIntersectsBlocked(route, blockedMid, threshold)) {
+            return route;
+          }
+        }
+      } catch {
+        continue;
+      }
     }
-  } catch {
-    // fallback: simple arc
   }
 
-  const numPts = 8;
+  const arcOffset = 0.004;
+  const numPts = 10;
   const arc: [number, number][] = [[start[0], start[1]]];
   for (let i = 1; i < numPts - 1; i++) {
     const t = i / (numPts - 1);
-    const lng = start[0] * (1 - t) + end[0] * t + Math.sin(t * Math.PI) * (-dy / len) * offset;
-    const lat = start[1] * (1 - t) + end[1] * t + Math.sin(t * Math.PI) * (dx / len) * offset;
+    const lng = start[0] * (1 - t) + end[0] * t + Math.sin(t * Math.PI) * (-dy / len) * arcOffset;
+    const lat = start[1] * (1 - t) + end[1] * t + Math.sin(t * Math.PI) * (dx / len) * arcOffset;
     arc.push([lng, lat]);
   }
   arc.push([end[0], end[1]]);
