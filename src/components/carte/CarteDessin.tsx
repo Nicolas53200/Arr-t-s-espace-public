@@ -782,7 +782,22 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
                         },
                       }}
                     >
-                      <Popup><div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 11 }}>Point {ptIdx + 1}<br /><span style={{ fontSize: 10, color: "#6B6A60" }}>Glisser pour deplacer<br />Clic droit pour supprimer</span></div></Popup>
+                      <Popup><div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 11 }}>
+                        Point {ptIdx + 1}
+                        <br /><span style={{ fontSize: 10, color: "#6B6A60" }}>Glisser pour deplacer</span>
+                        <br />
+                        <button
+                          onClick={() => handleVertexDelete(editingIdx, ptIdx)}
+                          style={{
+                            marginTop: 4, display: "flex", alignItems: "center", gap: 3,
+                            padding: "3px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600,
+                            background: "#DC2626", color: "#fff", border: "none",
+                            cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
+                          }}
+                        >
+                          <Trash2 size={10} /> Supprimer ce point
+                        </button>
+                      </div></Popup>
                     </Marker>
                   ))}
                   {editableCoords.length >= 2 && editableCoords.slice(0, -1).map((c, i) => {
