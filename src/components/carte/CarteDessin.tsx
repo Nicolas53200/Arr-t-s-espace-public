@@ -199,15 +199,25 @@ async function detectAlertesAsync(troncons: Troncon[]): Promise<AlerteAdjacente[
   return alertes;
 }
 
-function routeIntersectsBlocked(route: [number, number][], blocked: [number, number][], threshold: number): boolean {
+function pointToSegmentDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const abx = bx - ax, aby = by - ay;
+  const apx = px - ax, apy = py - ay;
+  const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / (abx * abx + aby * aby || 1)));
+  const cx = ax + t * abx, cy = ay + t * aby;
+  return Math.sqrt((px - cx) ** 2 + (py - cy) ** 2);
+}
+
+function routePassesDansRue(route: [number, number][], blocked: [number, number][]): boolean {
+  if (blocked.length < 2) return false;
+  const seuil = 0.0003;
+  let nbProches = 0;
   for (const rp of route) {
-    for (const bp of blocked) {
-      const dlng = rp[0] - bp[0];
-      const dlat = rp[1] - bp[1];
-      if (Math.sqrt(dlng * dlng + dlat * dlat) < threshold) return true;
+    for (let i = 0; i < blocked.length - 1; i++) {
+      const dist = pointToSegmentDist(rp[0], rp[1], blocked[i]![0], blocked[i]![1], blocked[i + 1]![0], blocked[i + 1]![1]);
+      if (dist < seuil) { nbProches++; break; }
     }
   }
-  return false;
+  return nbProches > 2;
 }
 
 async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][] | null> {
@@ -219,6 +229,28 @@ async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][
   const coords = blocked[0]!.coordonnees!;
   const start = coords[0]!;
   const end = coords[coords.length - 1]!;
+  const blockedInterior = coords.length > 2 ? coords.slice(1, -1) : coords;
+
+  try {
+    const altUrl = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson&alternatives=3`;
+    const res = await fetch(altUrl);
+    const data = await res.json();
+    if (data.routes && data.routes.length > 0) {
+      const candidates = data.routes
+        .map((r: { geometry: { coordinates: number[][] }; distance: number }) => ({
+          coords: r.geometry.coordinates.map((c: number[]) => [c[0], c[1]] as [number, number]),
+          distance: r.distance,
+        }))
+        .filter((r: { coords: [number, number][] }) => !routePassesDansRue(r.coords, blockedInterior));
+
+      if (candidates.length > 0) {
+        candidates.sort((a: { distance: number }, b: { distance: number }) => a.distance - b.distance);
+        return candidates[0].coords;
+      }
+    }
+  } catch {
+    // continue to waypoint approach
+  }
 
   const dx = end[0] - start[0];
   const dy = end[1] - start[1];
@@ -227,26 +259,20 @@ async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][
 
   const midLng = (start[0] + end[0]) / 2;
   const midLat = (start[1] + end[1]) / 2;
-
-  const offsets = [0.004, 0.006, 0.008];
+  const distances = [0.005, 0.008, 0.012];
   const sides = [1, -1];
 
-  for (const offsetDist of offsets) {
+  for (const d of distances) {
     for (const side of sides) {
-      const wpLng = midLng + (-dy / len) * offsetDist * side;
-      const wpLat = midLat + (dx / len) * offsetDist * side;
-
+      const wpLng = midLng + (-dy / len) * d * side;
+      const wpLat = midLat + (dx / len) * d * side;
       try {
         const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${wpLng},${wpLat};${end[0]},${end[1]}?overview=full&geometries=geojson`;
         const res = await fetch(osrmUrl);
         const data = await res.json();
         if (data.routes && data.routes[0]?.geometry?.coordinates) {
           const route = data.routes[0].geometry.coordinates.map((c: number[]) => [c[0], c[1]] as [number, number]);
-          const threshold = len * 0.15;
-          const blockedMid = coords.slice(1, -1);
-          if (blockedMid.length === 0 || !routeIntersectsBlocked(route, blockedMid, threshold)) {
-            return route;
-          }
+          if (!routePassesDansRue(route, blockedInterior)) return route;
         }
       } catch {
         continue;
@@ -254,17 +280,7 @@ async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][
     }
   }
 
-  const arcOffset = 0.004;
-  const numPts = 10;
-  const arc: [number, number][] = [[start[0], start[1]]];
-  for (let i = 1; i < numPts - 1; i++) {
-    const t = i / (numPts - 1);
-    const lng = start[0] * (1 - t) + end[0] * t + Math.sin(t * Math.PI) * (-dy / len) * arcOffset;
-    const lat = start[1] * (1 - t) + end[1] * t + Math.sin(t * Math.PI) * (dx / len) * arcOffset;
-    arc.push([lng, lat]);
-  }
-  arc.push([end[0], end[1]]);
-  return arc;
+  return null;
 }
 
 function SearchBarAuto({ onSelect, onAutoTrace }: {
@@ -470,6 +486,7 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
   const [labelInput, setLabelInput] = useState("");
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [deviationLoading, setDeviationLoading] = useState(false);
+  const [deviationError, setDeviationError] = useState("");
 
   const mapCentre = centre ?? [47.6575, -2.7610];
 
@@ -952,6 +969,7 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
               <button
                 onClick={async () => {
                   setDeviationLoading(true);
+                  setDeviationError("");
                   try {
                     const coords = await calculerDeviation(troncons);
                     if (coords && coords.length >= 2) {
@@ -964,7 +982,11 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
                         label: "Itineraire de deviation",
                       };
                       onAdd(t);
+                    } else {
+                      setDeviationError("Aucune deviation valide trouvee. Utilisez le tracage manuel.");
                     }
+                  } catch {
+                    setDeviationError("Erreur de calcul. Utilisez le tracage manuel.");
                   } finally {
                     setDeviationLoading(false);
                   }
@@ -997,6 +1019,11 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
               >
                 <Pencil size={10} /> Tracer manuellement
               </button>
+              {deviationError && (
+                <p style={{ fontSize: 10, color: "#DC2626", margin: "4px 0 0", fontStyle: "italic" }}>
+                  {deviationError}
+                </p>
+              )}
             </div>
           </div>
         )}
