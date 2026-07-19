@@ -33,6 +33,7 @@ interface Props {
   onUpdateCoords?: (idx: number, coords: [number, number][]) => void;
   centre?: [number, number];
   rueInitiale?: string;
+  voiesInitiales?: { nom: string; impact: CodeImpact; touteRue: boolean; debut: string; fin: string }[];
 }
 
 const IMPACT_COULEURS: Record<string, string> = {};
@@ -385,7 +386,7 @@ function AlertesPanel({ troncons }: { troncons: Troncon[] }) {
   );
 }
 
-export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact, onUpdateCoords, centre, rueInitiale }: Props) {
+export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact, onUpdateCoords, centre, rueInitiale, voiesInitiales }: Props) {
   const [mode, setMode] = useState<DrawMode>("select");
   const [currentImpact, setCurrentImpact] = useState<CodeImpact>("circulation_interdite");
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
@@ -437,22 +438,45 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
 
   const initialTraceDone = useRef(false);
   useEffect(() => {
-    if (!rueInitiale || rueInitiale.length < 3 || initialTraceDone.current) return;
+    if (initialTraceDone.current) return;
+
+    const rues = voiesInitiales && voiesInitiales.length > 0
+      ? voiesInitiales.filter((v) => v.nom.length >= 3)
+      : rueInitiale && rueInitiale.length >= 3
+        ? [{ nom: rueInitiale, impact: "circulation_interdite" as CodeImpact, touteRue: true, debut: "", fin: "" }]
+        : [];
+
+    if (rues.length === 0) return;
     initialTraceDone.current = true;
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(rueInitiale + ", France")}`)
-      .then((r) => r.json())
-      .then((data: NominatimResult[]) => {
-        if (!data[0]) return;
-        const r = data[0];
-        const coords = extractLineCoords(r.geojson);
-        const label = r.display_name.split(",")[0] ?? rueInitiale;
-        if (coords && coords.length >= 2) {
-          handleAutoTrace(coords, label);
-        }
-        setSearchTarget([parseFloat(r.lat), parseFloat(r.lon)]);
-      })
-      .catch(() => {});
-  }, [rueInitiale, handleAutoTrace]);
+
+    rues.forEach((rue, i) => {
+      setTimeout(() => {
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(rue.nom + ", France")}`)
+          .then((r) => r.json())
+          .then((data: NominatimResult[]) => {
+            if (!data[0]) return;
+            const r = data[0];
+            const coords = extractLineCoords(r.geojson);
+            const label = r.display_name.split(",")[0] ?? rue.nom;
+            if (coords && coords.length >= 2) {
+              const t: Troncon = {
+                voie_id: `auto_${Date.now()}_${i}`,
+                impact: rue.impact,
+                origine: "auto",
+                coordonnees: coords,
+                geometrie_type: "LineString",
+                label,
+                segment_debut: rue.touteRue ? "" : rue.debut,
+                segment_fin: rue.touteRue ? "" : rue.fin,
+              };
+              onAdd(t);
+            }
+            if (i === 0) setSearchTarget([parseFloat(r.lat), parseFloat(r.lon)]);
+          })
+          .catch(() => {});
+      }, i * 1100);
+    });
+  }, [voiesInitiales, rueInitiale, onAdd]);
 
   const handleVertexDrag = useCallback((tIdx: number, ptIdx: number, lat: number, lng: number) => {
     if (!onUpdateCoords) return;

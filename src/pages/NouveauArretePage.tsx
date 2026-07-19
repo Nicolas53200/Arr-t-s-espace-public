@@ -16,10 +16,19 @@ import { VOIES } from "@/data/voies";
 import { genNum } from "@/lib/arrete";
 import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
 import CarteDessin from "@/components/carte/CarteDessin";
-import type { Arrete, TypeArrete, Phase, Troncon } from "@/types";
+import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { validerChamp } from "@/lib/validation";
 import type { RegleValidation } from "@/lib/validation";
+
+interface VoieDeclaree {
+  id: number;
+  nom: string;
+  touteRue: boolean;
+  debut: string;
+  fin: string;
+  impact: CodeImpact;
+}
 
 /* ---------- styles inline erreur ---------- */
 const styleErreur = { fontSize: 11, color: "#DC2626", margin: "3px 0 0" } as const;
@@ -53,6 +62,7 @@ export default function NouveauArretePage() {
   const [publie, setPublie] = useState(false);
   const [dernierArrete, setDernierArrete] = useState<{ numero: string; mode: string; titre: string } | null>(null);
   const [motifModification, setMotifModification] = useState("");
+  const [voiesDeclarees, setVoiesDeclarees] = useState<VoieDeclaree[]>([]);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [nextIdx] = useState(156);
 
@@ -136,6 +146,7 @@ export default function NouveauArretePage() {
     setPhaseActive(0);
     setTouchedEtape1({});
     setTouchedPhases({});
+    setVoiesDeclarees([]);
     setEtape(1);
   }
 
@@ -277,9 +288,87 @@ export default function NouveauArretePage() {
               <textarea rows={2} value={motifModification} onChange={(e) => setMotifModification(e.target.value)} style={{ resize: "vertical" }} />
             </div>
           )}
+          {/* Voies impactees */}
+          <div style={{ border: "1px solid #E4E1D6", borderRadius: 7, padding: 12, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 9 }}>
+              <p style={{ fontWeight: 600, fontSize: 12, margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                <Map size={12} /> Voies impactees
+              </p>
+              <button
+                onClick={() => setVoiesDeclarees((prev) => [...prev, { id: Date.now(), nom: "", touteRue: true, debut: "", fin: "", impact: "circulation_interdite" }])}
+                style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, background: "none", border: "none", cursor: "pointer", color: "#1E3A5F", fontWeight: 600 }}
+              >
+                <Plus size={11} /> Ajouter une voie
+              </button>
+            </div>
+            {voiesDeclarees.length === 0 && (
+              <p style={{ fontSize: 11, color: "#A6A399", textAlign: "center", padding: "12px 0", margin: 0 }}>
+                Aucune voie declaree. Ajoutez les rues impactees par cet arrete.
+              </p>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {voiesDeclarees.map((v, i) => (
+                <div key={v.id} style={{ background: "#FAFAF7", border: "1px solid #E4E1D6", borderRadius: 6, padding: "8px 10px", borderLeft: `3px solid ${TYPES_IMPACT.find((ti) => ti.code === v.impact)?.couleur ?? "#6B6A60"}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: "#1C1F1B" }}>Voie {i + 1}</span>
+                    <button onClick={() => setVoiesDeclarees((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#A6A399" }}><X size={11} /></button>
+                  </div>
+                  <div style={{ marginBottom: 6 }}>
+                    <input
+                      type="text"
+                      placeholder="Nom de la rue (ex. Rue de la Republique)"
+                      value={v.nom}
+                      onChange={(e) => setVoiesDeclarees((prev) => prev.map((vd, j) => j === i ? { ...vd, nom: e.target.value } : vd))}
+                      style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={v.touteRue}
+                        onChange={(e) => setVoiesDeclarees((prev) => prev.map((vd, j) => j === i ? { ...vd, touteRue: e.target.checked, debut: "", fin: "" } : vd))}
+                        style={{ width: 14, height: 14 }}
+                      />
+                      Toute la rue
+                    </label>
+                    {!v.touteRue && (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="Du n°"
+                          value={v.debut}
+                          onChange={(e) => setVoiesDeclarees((prev) => prev.map((vd, j) => j === i ? { ...vd, debut: e.target.value } : vd))}
+                          style={{ width: 70, fontSize: 11, padding: "4px 6px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif" }}
+                        />
+                        <span style={{ fontSize: 11, color: "#6B6A60" }}>au</span>
+                        <input
+                          type="text"
+                          placeholder="Au n°"
+                          value={v.fin}
+                          onChange={(e) => setVoiesDeclarees((prev) => prev.map((vd, j) => j === i ? { ...vd, fin: e.target.value } : vd))}
+                          style={{ width: 70, fontSize: 11, padding: "4px 6px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif" }}
+                        />
+                      </>
+                    )}
+                  </div>
+                  <select
+                    value={v.impact}
+                    onChange={(e) => setVoiesDeclarees((prev) => prev.map((vd, j) => j === i ? { ...vd, impact: e.target.value as CodeImpact } : vd))}
+                    style={{ width: "100%", fontSize: 11, padding: "4px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif" }}
+                  >
+                    {TYPES_IMPACT.map((ti) => (
+                      <option key={ti.code} value={ti.code}>{ti.label}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {typeArrete.multi_phases && <div style={{ background: "#EDE9FE", borderRadius: 5, padding: "8px 12px", marginBottom: 10, display: "flex", gap: 7, alignItems: "flex-start" }}><Layers size={12} color="#7C3AED" style={{ marginTop: 1, flexShrink: 0 }} /><p style={{ fontSize: 11, color: "#5B21B6", margin: 0 }}><strong>Phase :</strong> {typeArrete.aide_phases}</p></div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 16 }}>
-            {typeArrete.champs.filter((c) => typeArrete.multi_phases ? c.type !== "adresse" && c.type !== "datetime" : true).map((c) => (
+            {typeArrete.champs.filter((c) => c.type !== "adresse" && (typeArrete.multi_phases ? c.type !== "datetime" : true)).map((c) => (
               <div key={c.id}>
                 <ChampFormulaire
                   champ={c}
@@ -372,6 +461,7 @@ export default function NouveauArretePage() {
           <CarteDessin
             troncons={phaseActuelle.troncons}
             rueInitiale={(valeurs[champsAdresse?.id ?? ""] as string) || ""}
+            voiesInitiales={voiesDeclarees.filter((v) => v.nom.length >= 3).map((v) => ({ nom: v.nom, impact: v.impact, touteRue: v.touteRue, debut: v.debut, fin: v.fin }))}
             onAdd={(t) => {
               setPhases((prev) => prev.map((ph, i) =>
                 i !== phaseActive ? ph : { ...ph, troncons: [...ph.troncons, t] }
