@@ -417,7 +417,7 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
 
   const initialTraceDone = useRef(false);
   useEffect(() => {
-    if (!rueInitiale || rueInitiale.length < 3 || initialTraceDone.current || troncons.length > 0) return;
+    if (!rueInitiale || rueInitiale.length < 3 || initialTraceDone.current) return;
     initialTraceDone.current = true;
     fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(rueInitiale + ", France")}`)
       .then((r) => r.json())
@@ -432,7 +432,7 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
         setSearchTarget([parseFloat(r.lat), parseFloat(r.lon)]);
       })
       .catch(() => {});
-  }, [rueInitiale, troncons.length, handleAutoTrace]);
+  }, [rueInitiale, handleAutoTrace]);
 
   const existingShapes = useMemo(() => {
     return troncons.filter((t) => t.coordonnees && t.coordonnees.length >= 2);

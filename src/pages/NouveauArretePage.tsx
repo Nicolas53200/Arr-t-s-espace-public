@@ -13,11 +13,10 @@ import { AUJOURD_HUI } from "@/config/constants";
 import { TYPES_ARRETE } from "@/data/types-arrete";
 import { TYPES_IMPACT } from "@/data/types-impact";
 import { VOIES } from "@/data/voies";
-import { resoudreTroncons } from "@/lib/voie";
 import { genNum } from "@/lib/arrete";
 import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
 import CarteDessin from "@/components/carte/CarteDessin";
-import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact } from "@/types";
+import type { Arrete, TypeArrete, Phase, Troncon } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { validerChamp } from "@/lib/validation";
 import type { RegleValidation } from "@/lib/validation";
@@ -141,13 +140,6 @@ export default function NouveauArretePage() {
   }
 
   function allerCarte() {
-    setPhases((prev) => prev.map((ph) => {
-      const loc = ph.localisation || (valeurs[champsAdresse?.id ?? ""] as string) || "";
-      const detectes = resoudreTroncons(loc);
-      const ex = new Set(ph.troncons.map((t) => t.voie_id));
-      const nv = detectes.filter((id) => !ex.has(id)).map((id) => ({ voie_id: id, impact: "circulation_interdite" as CodeImpact, segment_debut: "", segment_fin: "", origine: "auto" as const }));
-      return { ...ph, troncons: [...ph.troncons, ...nv] };
-    }));
     setEtape(2);
   }
 
