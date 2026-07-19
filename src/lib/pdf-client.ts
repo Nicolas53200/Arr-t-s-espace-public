@@ -1,4 +1,83 @@
-import type { Arrete, Reference, TenantInfo } from "@/types";
+import type { Arrete, Reference, TenantInfo, Troncon, CodeImpact } from "@/types";
+
+const LABELS_IMPACT: Record<CodeImpact, string> = {
+  circulation_interdite: "Circulation interdite",
+  stationnement_interdit: "Stationnement interdit",
+  deviation: "Deviation",
+  zone_reservee: "Zone reservee",
+  passage_maintenu: "Passage secours maintenu",
+  alternat: "Alternat",
+};
+
+function buildVoiesParImpact(
+  troncons: Troncon[],
+  voies: string[],
+): Map<CodeImpact, { label: string; segment: string }[]> {
+  const grouped = new Map<CodeImpact, { label: string; segment: string }[]>();
+
+  for (const t of troncons) {
+    if (t.impact === "deviation") continue;
+    const voieName = t.label || voies.find((v) => v.toLowerCase().includes(t.voie_id.toLowerCase())) || t.voie_id;
+    const segment = t.segment_debut && t.segment_fin
+      ? `du n°${t.segment_debut} au n°${t.segment_fin}`
+      : "toute la rue";
+    const list = grouped.get(t.impact) ?? [];
+    list.push({ label: voieName, segment });
+    grouped.set(t.impact, list);
+  }
+
+  return grouped;
+}
+
+function buildArticleVoiesHtml(troncons: Troncon[], voies: string[]): string {
+  if (troncons.length === 0) {
+    const items = voies.map((v) => `<li>${escapeHtml(v)}</li>`).join("\n");
+    return `<ul>\n${items}\n</ul>`;
+  }
+
+  const grouped = buildVoiesParImpact(troncons, voies);
+  if (grouped.size === 0) {
+    const items = voies.map((v) => `<li>${escapeHtml(v)}</li>`).join("\n");
+    return `<ul>\n${items}\n</ul>`;
+  }
+
+  let html = "";
+  for (const [impact, entries] of grouped) {
+    html += `<p style="margin:6pt 0 2pt;font-weight:bold;">${escapeHtml(LABELS_IMPACT[impact])} :</p>\n<ul>\n`;
+    for (const entry of entries) {
+      html += `<li>${escapeHtml(entry.label)} (${escapeHtml(entry.segment)})</li>\n`;
+    }
+    html += `</ul>\n`;
+  }
+  return html;
+}
+
+function buildArticleDeviationHtml(troncons: Troncon[], voies: string[]): string {
+  const deviations = troncons.filter((t) => t.impact === "deviation");
+  if (deviations.length === 0) return "";
+
+  let html = `<div class="article">
+    <p class="article-titre">Article 3 — Itineraire de deviation</p>
+    <div class="article-contenu">
+      <ul>\n`;
+  for (const t of deviations) {
+    const voieName = t.label || voies.find((v) => v.toLowerCase().includes(t.voie_id.toLowerCase())) || t.voie_id;
+    html += `        <li>${escapeHtml(voieName)}</li>\n`;
+  }
+  html += `      </ul>
+    </div>
+  </div>`;
+  return html;
+}
+
+function buildAnnexeHtml(troncons: Troncon[]): string {
+  const hasCoords = troncons.some((t) => t.coordonnees && t.coordonnees.length > 0);
+  if (!hasCoords) return "";
+  return `<div class="article" style="margin-top:18pt;">
+    <p class="article-titre">Annexe : Plan de deviation joint</p>
+    <p class="article-contenu">Le plan annexe au present arrete materialise les itineraires de deviation et les zones d'impact.</p>
+  </div>`;
+}
 
 function formatDateFr(d: string): string {
   if (!d) return "—";
@@ -42,9 +121,11 @@ export function ouvrirApercuPdf(
     )
     .join("\n");
 
-  const voiesHtml = arrete.voies
-    .map((v) => `<li>${escapeHtml(v)}</li>`)
-    .join("\n");
+  const voiesDetailHtml = buildArticleVoiesHtml(arrete.troncons, arrete.voies);
+  const hasDeviation = arrete.troncons.some((t) => t.impact === "deviation");
+  const deviationHtml = buildArticleDeviationHtml(arrete.troncons, arrete.voies);
+  const annexeHtml = buildAnnexeHtml(arrete.troncons);
+  const articleOffset = hasDeviation ? 1 : 0;
 
   const logoHtml = tenant?.logo
     ? `<img src="${tenant.logo}" alt="" class="logo-mairie" />`
@@ -330,21 +411,23 @@ export function ouvrirApercuPdf(
   <div class="article">
     <p class="article-titre">Article 2 — Voies concernees</p>
     <div class="article-contenu">
-      <ul>
-        ${voiesHtml}
-      </ul>
+      ${voiesDetailHtml}
     </div>
   </div>
 
+  ${deviationHtml}
+
   <div class="article">
-    <p class="article-titre">Article 3 — Mesures de police</p>
+    <p class="article-titre">Article ${3 + articleOffset} — Mesures de police</p>
     <p class="article-contenu">Les mesures de restriction de circulation et/ou de stationnement sont applicables conformement a la signalisation mise en place.</p>
   </div>
 
   <div class="article">
-    <p class="article-titre">Article 4 — Execution</p>
+    <p class="article-titre">Article ${4 + articleOffset} — Execution</p>
     <p class="article-contenu">Le present arrete sera notifie aux services de police municipale, aux services techniques et a toute personne interessee.</p>
   </div>
+
+  ${annexeHtml}
 
   <hr class="separator">
 

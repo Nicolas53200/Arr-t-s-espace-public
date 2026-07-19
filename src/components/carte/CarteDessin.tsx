@@ -844,6 +844,55 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
           })}
         </div>
 
+        {troncons.some((t) => t.impact === "circulation_interdite") && (
+          <div style={{
+            marginTop: 10, padding: "10px 12px",
+            background: "#F5F3FF", borderRadius: 7,
+            border: "1px solid #7C3AED",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+              <ArrowRightLeft size={13} color="#7C3AED" />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#7C3AED" }}>
+                Deviation
+              </span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <button
+                onClick={() => {
+                  setCurrentImpact("deviation");
+                  setMode("line");
+                  setDrawPoints([]);
+                }}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                  padding: "7px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                  cursor: "pointer", width: "100%",
+                  background: "#7C3AED", color: "#fff", border: "none",
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                }}
+              >
+                <ArrowRightLeft size={11} /> Proposer une deviation
+              </button>
+              <button
+                onClick={() => {
+                  setCurrentImpact("deviation");
+                  setMode("line");
+                  setDrawPoints([]);
+                }}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                  padding: "6px 12px", borderRadius: 6, fontSize: 10, fontWeight: 500,
+                  cursor: "pointer", width: "100%",
+                  background: "#FFFFFF", color: "#7C3AED", border: "1px solid #7C3AED",
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                }}
+              >
+                <Pencil size={10} /> Tracer manuellement
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Alertes rues adjacentes */}
         <AlertesPanel troncons={troncons} />
       </div>
