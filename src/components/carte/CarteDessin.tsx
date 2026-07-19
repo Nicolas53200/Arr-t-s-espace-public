@@ -30,6 +30,7 @@ interface Props {
   onAdd: (t: Troncon) => void;
   onRemove: (idx: number) => void;
   onUpdateImpact: (idx: number, impact: CodeImpact) => void;
+  onUpdateCoords?: (idx: number, coords: [number, number][]) => void;
   centre?: [number, number];
   rueInitiale?: string;
 }
@@ -47,6 +48,24 @@ function vertexIcon(color: string) {
     html: `<div style="width:10px;height:10px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>`,
     iconSize: [14, 14],
     iconAnchor: [7, 7],
+  });
+}
+
+function editVertexIcon(color: string) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4);cursor:move;"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
+
+function midpointIcon() {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:8px;height:8px;border-radius:50%;background:rgba(37,99,235,0.5);border:1.5px solid #2563EB;cursor:pointer;"></div>`,
+    iconSize: [11, 11],
+    iconAnchor: [5, 5],
   });
 }
 
@@ -366,12 +385,13 @@ function AlertesPanel({ troncons }: { troncons: Troncon[] }) {
   );
 }
 
-export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact, centre, rueInitiale }: Props) {
+export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact, onUpdateCoords, centre, rueInitiale }: Props) {
   const [mode, setMode] = useState<DrawMode>("select");
   const [currentImpact, setCurrentImpact] = useState<CodeImpact>("circulation_interdite");
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [searchTarget, setSearchTarget] = useState<[number, number] | null>(null);
   const [labelInput, setLabelInput] = useState("");
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   const mapCentre = centre ?? [47.6575, -2.7610];
 
@@ -433,6 +453,39 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
       })
       .catch(() => {});
   }, [rueInitiale, handleAutoTrace]);
+
+  const handleVertexDrag = useCallback((tIdx: number, ptIdx: number, lat: number, lng: number) => {
+    if (!onUpdateCoords) return;
+    const t = troncons[tIdx];
+    if (!t?.coordonnees) return;
+    const newCoords = t.coordonnees.map((c, i) => i === ptIdx ? [lng, lat] as [number, number] : c);
+    if (t.geometrie_type === "Polygon" && ptIdx === 0 && newCoords.length > 1) {
+      newCoords[newCoords.length - 1] = [lng, lat];
+    }
+    onUpdateCoords(tIdx, newCoords);
+  }, [troncons, onUpdateCoords]);
+
+  const handleVertexDelete = useCallback((tIdx: number, ptIdx: number) => {
+    if (!onUpdateCoords) return;
+    const t = troncons[tIdx];
+    if (!t?.coordonnees) return;
+    const minPts = t.geometrie_type === "Polygon" ? 4 : 2;
+    if (t.coordonnees.length <= minPts) return;
+    const newCoords = t.coordonnees.filter((_, i) => i !== ptIdx);
+    if (t.geometrie_type === "Polygon" && ptIdx === 0 && newCoords.length > 1) {
+      newCoords[newCoords.length - 1] = newCoords[0]!;
+    }
+    onUpdateCoords(tIdx, newCoords);
+  }, [troncons, onUpdateCoords]);
+
+  const handleAddVertex = useCallback((tIdx: number, afterIdx: number, lat: number, lng: number) => {
+    if (!onUpdateCoords) return;
+    const t = troncons[tIdx];
+    if (!t?.coordonnees) return;
+    const newCoords = [...t.coordonnees];
+    newCoords.splice(afterIdx + 1, 0, [lng, lat] as [number, number]);
+    onUpdateCoords(tIdx, newCoords);
+  }, [troncons, onUpdateCoords]);
 
   const existingShapes = useMemo(() => {
     return troncons.filter((t) => t.coordonnees && t.coordonnees.length >= 2);
@@ -576,22 +629,79 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
 
             {/* Existing drawn shapes */}
             {existingShapes.map((t) => {
+              const tIdx = troncons.indexOf(t);
               const col = couleur(t.impact);
               const latLngs = t.coordonnees!.map((p) => [p[1], p[0]] as [number, number]);
               const impLabel = TYPES_IMPACT.find((x) => x.code === t.impact)?.label;
+              const isEditing = editingIdx === tIdx;
+              const shapeEvents = {
+                click: () => { if (mode === "select" && onUpdateCoords) setEditingIdx(isEditing ? null : tIdx); },
+              };
               if (t.geometrie_type === "Polygon") {
                 return (
-                  <Polygon key={t.voie_id} positions={latLngs} pathOptions={{ color: col, weight: 4, fillColor: col, fillOpacity: 0.25 }}>
-                    <Popup><div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 12 }}><strong>{t.label}</strong><br />{impLabel}<br /><span style={{ fontSize: 10, color: "#6B6A60" }}>{t.origine === "auto" ? "Trace auto · modifiable" : "Trace manuel"}</span></div></Popup>
-                  </Polygon>
+                  <span key={t.voie_id}>
+                    <Polygon positions={latLngs} pathOptions={{ color: col, weight: isEditing ? 3 : 4, fillColor: col, fillOpacity: isEditing ? 0.15 : 0.25, dashArray: isEditing ? "6 4" : undefined }} eventHandlers={shapeEvents}>
+                      {!isEditing && <Popup><div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 12 }}><strong>{t.label}</strong><br />{impLabel}<br /><span style={{ fontSize: 10, color: "#6B6A60" }}>Cliquez pour modifier</span></div></Popup>}
+                    </Polygon>
+                  </span>
                 );
               }
               return (
-                <Polyline key={t.voie_id} positions={latLngs} pathOptions={{ color: col, weight: 5, opacity: 0.85, lineCap: "round", lineJoin: "round" }}>
-                  <Popup><div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 12 }}><strong>{t.label}</strong><br />{impLabel}<br /><span style={{ fontSize: 10, color: "#6B6A60" }}>{t.origine === "auto" ? "Trace auto · modifiable" : "Trace manuel"}</span></div></Popup>
-                </Polyline>
+                <span key={t.voie_id}>
+                  <Polyline positions={latLngs} pathOptions={{ color: col, weight: isEditing ? 4 : 5, opacity: 0.85, lineCap: "round", lineJoin: "round", dashArray: isEditing ? "8 5" : undefined }} eventHandlers={shapeEvents}>
+                    {!isEditing && <Popup><div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 12 }}><strong>{t.label}</strong><br />{impLabel}<br /><span style={{ fontSize: 10, color: "#6B6A60" }}>Cliquez pour modifier</span></div></Popup>}
+                  </Polyline>
+                </span>
               );
             })}
+
+            {/* Editable vertices */}
+            {editingIdx !== null && troncons[editingIdx]?.coordonnees && (() => {
+              const t = troncons[editingIdx]!;
+              const coords = t.coordonnees!;
+              const col = couleur(t.impact);
+              const skipLast = t.geometrie_type === "Polygon" ? 1 : 0;
+              const editableCoords = coords.slice(0, coords.length - skipLast);
+              return (
+                <>
+                  {editableCoords.map((c, ptIdx) => (
+                    <Marker
+                      key={`ev-${ptIdx}`}
+                      position={[c[1], c[0]]}
+                      icon={editVertexIcon(col)}
+                      draggable
+                      eventHandlers={{
+                        dragend: (e) => {
+                          const latlng = e.target.getLatLng();
+                          handleVertexDrag(editingIdx, ptIdx, latlng.lat, latlng.lng);
+                        },
+                        contextmenu: (e) => {
+                          e.originalEvent.preventDefault();
+                          handleVertexDelete(editingIdx, ptIdx);
+                        },
+                      }}
+                    >
+                      <Popup><div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 11 }}>Point {ptIdx + 1}<br /><span style={{ fontSize: 10, color: "#6B6A60" }}>Glisser pour deplacer<br />Clic droit pour supprimer</span></div></Popup>
+                    </Marker>
+                  ))}
+                  {editableCoords.length >= 2 && editableCoords.slice(0, -1).map((c, i) => {
+                    const next = editableCoords[i + 1]!;
+                    const midLat = (c[1] + next[1]) / 2;
+                    const midLng = (c[0] + next[0]) / 2;
+                    return (
+                      <Marker
+                        key={`mid-${i}`}
+                        position={[midLat, midLng]}
+                        icon={midpointIcon()}
+                        eventHandlers={{
+                          click: () => handleAddVertex(editingIdx, i, midLat, midLng),
+                        }}
+                      />
+                    );
+                  })}
+                </>
+              );
+            })()}
 
             {/* Legend */}
             <div style={{
@@ -657,13 +767,31 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
                 padding: "8px 10px", borderLeft: `3px solid ${col}`,
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 500, color: "#1C1F1B", display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: editingIdx === idx ? "#2563EB" : "#1C1F1B", display: "flex", alignItems: "center", gap: 4 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, flexShrink: 0 }} />
                     {t.label || t.voie_id}
                   </span>
-                  <button onClick={() => onRemove(idx)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#A6A399" }}>
-                    <Trash2 size={12} />
-                  </button>
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {isGeo && onUpdateCoords && (
+                      <button
+                        onClick={() => setEditingIdx(editingIdx === idx ? null : idx)}
+                        title={editingIdx === idx ? "Terminer" : "Modifier le trace"}
+                        style={{
+                          background: editingIdx === idx ? "#2563EB" : "none",
+                          border: editingIdx === idx ? "none" : "1px solid #E4E1D6",
+                          borderRadius: 4, cursor: "pointer", padding: "2px 5px",
+                          color: editingIdx === idx ? "#fff" : "#6B6A60",
+                          fontSize: 9, fontWeight: 500, display: "flex", alignItems: "center", gap: 2,
+                          fontFamily: "'IBM Plex Sans', sans-serif",
+                        }}
+                      >
+                        <Pencil size={9} /> {editingIdx === idx ? "OK" : "Editer"}
+                      </button>
+                    )}
+                    <button onClick={() => { if (editingIdx === idx) setEditingIdx(null); onRemove(idx); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#A6A399" }}>
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 </div>
                 {isGeo && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
