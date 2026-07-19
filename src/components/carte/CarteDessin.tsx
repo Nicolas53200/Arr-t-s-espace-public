@@ -144,70 +144,101 @@ function extractLineCoords(geojson: NominatimResult["geojson"]): [number, number
   return null;
 }
 
-function detectAlertesAdjacentes(troncons: Troncon[]): AlerteAdjacente[] {
+async function fetchRuesProches(lng: number, lat: number, rueBloquee: string): Promise<AlerteAdjacente[]> {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17`);
+    const data = await res.json();
+    const rueName = data?.address?.road || data?.address?.pedestrian || "";
+    if (!rueName || rueName === rueBloquee) return [];
+    return [{ rue: rueName, sensUnique: false, direction: undefined, distance: 0 }];
+  } catch {
+    return [];
+  }
+}
+
+async function detectAlertesAsync(troncons: Troncon[]): Promise<AlerteAdjacente[]> {
   const blocked = troncons.filter((t) =>
     t.impact === "circulation_interdite" && t.coordonnees && t.coordonnees.length >= 2
   );
   if (blocked.length === 0) return [];
 
   const alertes: AlerteAdjacente[] = [];
+  const seen = new Set<string>();
 
   for (const t of blocked) {
     const coords = t.coordonnees!;
+    const rueBloquee = t.label || t.voie_id;
     const start = coords[0]!;
     const end = coords[coords.length - 1]!;
 
-    for (const other of troncons) {
-      if (other.voie_id === t.voie_id) continue;
-      if (!other.coordonnees || other.coordonnees.length < 2) continue;
+    const offsets = [
+      { lng: start[0] + 0.0004, lat: start[1] },
+      { lng: start[0] - 0.0004, lat: start[1] },
+      { lng: start[0], lat: start[1] + 0.0003 },
+      { lng: start[0], lat: start[1] - 0.0003 },
+      { lng: end[0] + 0.0004, lat: end[1] },
+      { lng: end[0] - 0.0004, lat: end[1] },
+      { lng: end[0], lat: end[1] + 0.0003 },
+      { lng: end[0], lat: end[1] - 0.0003 },
+    ];
 
-      const otherStart = other.coordonnees[0]!;
-      const otherEnd = other.coordonnees[other.coordonnees.length - 1]!;
-
-      const threshold = 0.0003;
-      const near = (a: [number, number], b: [number, number]) =>
-        Math.abs(a[0] - b[0]) < threshold && Math.abs(a[1] - b[1]) < threshold;
-
-      let connected = false;
-
-      if (near(otherStart, start) || near(otherStart, end)) {
-        connected = true;
-      } else if (near(otherEnd, start) || near(otherEnd, end)) {
-        connected = true;
+    for (let i = 0; i < offsets.length; i++) {
+      const o = offsets[i]!;
+      await new Promise((r) => setTimeout(r, i * 250));
+      const rues = await fetchRuesProches(o.lng, o.lat, rueBloquee);
+      for (const a of rues) {
+        if (!seen.has(a.rue)) {
+          seen.add(a.rue);
+          const position = i < 4 ? "debut" : "fin";
+          alertes.push({ ...a, direction: `Intersection ${position}` });
+        }
       }
-
-      if (connected && !alertes.find((a) => a.rue === (other.label || other.voie_id))) {
-        const dx = otherEnd[0] - otherStart[0];
-        const dy = otherEnd[1] - otherStart[1];
-        const isMostlyNS = Math.abs(dy) > Math.abs(dx);
-        const dirLabel = isMostlyNS
-          ? (dy > 0 ? "Sud → Nord" : "Nord → Sud")
-          : (dx > 0 ? "Ouest → Est" : "Est → Ouest");
-
-        const dist = Math.sqrt(
-          Math.pow((otherEnd[0] - otherStart[0]) * 111320 * Math.cos(otherStart[1] * Math.PI / 180), 2) +
-          Math.pow((otherEnd[1] - otherStart[1]) * 110540, 2)
-        );
-
-        alertes.push({
-          rue: other.label || other.voie_id,
-          sensUnique: false,
-          direction: dirLabel,
-          distance: Math.round(dist),
-        });
-      }
-    }
-
-    if (alertes.length === 0 && coords.length >= 2) {
-      const fakeAdjacent: AlerteAdjacente[] = [
-        { rue: `Intersection debut (${t.label || t.voie_id})`, sensUnique: false, direction: "a verifier", distance: 0 },
-        { rue: `Intersection fin (${t.label || t.voie_id})`, sensUnique: false, direction: "a verifier", distance: 0 },
-      ];
-      alertes.push(...fakeAdjacent);
     }
   }
 
   return alertes;
+}
+
+async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][] | null> {
+  const blocked = troncons.filter((t) =>
+    t.impact === "circulation_interdite" && t.coordonnees && t.coordonnees.length >= 2
+  );
+  if (blocked.length === 0) return null;
+
+  const coords = blocked[0]!.coordonnees!;
+  const start = coords[0]!;
+  const end = coords[coords.length - 1]!;
+
+  const offset = 0.002;
+  const midLng = (start[0] + end[0]) / 2;
+  const midLat = (start[1] + end[1]) / 2;
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const perpLng = midLng + (-dy / len) * offset;
+  const perpLat = midLat + (dx / len) * offset;
+
+  try {
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${perpLng},${perpLat};${end[0]},${end[1]}?overview=full&geometries=geojson`;
+    const res = await fetch(osrmUrl);
+    const data = await res.json();
+    if (data.routes && data.routes[0]?.geometry?.coordinates) {
+      return data.routes[0].geometry.coordinates.map((c: number[]) => [c[0], c[1]] as [number, number]);
+    }
+  } catch {
+    // fallback: simple arc
+  }
+
+  const numPts = 8;
+  const arc: [number, number][] = [[start[0], start[1]]];
+  for (let i = 1; i < numPts - 1; i++) {
+    const t = i / (numPts - 1);
+    const lng = start[0] * (1 - t) + end[0] * t + Math.sin(t * Math.PI) * (-dy / len) * offset;
+    const lat = start[1] * (1 - t) + end[1] * t + Math.sin(t * Math.PI) * (dx / len) * offset;
+    arc.push([lng, lat]);
+  }
+  arc.push([end[0], end[1]]);
+  return arc;
 }
 
 function SearchBarAuto({ onSelect, onAutoTrace }: {
@@ -324,8 +355,23 @@ function SearchBarAuto({ onSelect, onAutoTrace }: {
 }
 
 function AlertesPanel({ troncons }: { troncons: Troncon[] }) {
-  const alertes = useMemo(() => detectAlertesAdjacentes(troncons), [troncons]);
+  const [alertes, setAlertes] = useState<AlerteAdjacente[]>([]);
+  const [loading, setLoading] = useState(false);
   const hasBlocked = troncons.some((t) => t.impact === "circulation_interdite" && t.coordonnees);
+  const blockedKey = troncons
+    .filter((t) => t.impact === "circulation_interdite" && t.coordonnees)
+    .map((t) => t.voie_id)
+    .join(",");
+
+  useEffect(() => {
+    if (!hasBlocked) { setAlertes([]); return; }
+    let cancelled = false;
+    setLoading(true);
+    detectAlertesAsync(troncons).then((result) => {
+      if (!cancelled) { setAlertes(result); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [blockedKey, hasBlocked]);
 
   if (!hasBlocked) return null;
 
@@ -345,7 +391,11 @@ function AlertesPanel({ troncons }: { troncons: Troncon[] }) {
         Les rues suivantes debouchent sur un troncon en circulation interdite.
         Verifiez les sens uniques et prevoyez la signalisation.
       </p>
-      {alertes.length > 0 ? (
+      {loading ? (
+        <p style={{ fontSize: 10, color: "#92400E", margin: 0, fontStyle: "italic" }}>
+          Recherche des rues adjacentes en cours...
+        </p>
+      ) : alertes.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {alertes.map((a, i) => (
             <div key={i} style={{
@@ -393,6 +443,7 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
   const [searchTarget, setSearchTarget] = useState<[number, number] | null>(null);
   const [labelInput, setLabelInput] = useState("");
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [deviationLoading, setDeviationLoading] = useState(false);
 
   const mapCentre = centre ?? [47.6575, -2.7610];
 
@@ -858,20 +909,36 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <button
-                onClick={() => {
-                  setCurrentImpact("deviation");
-                  setMode("line");
-                  setDrawPoints([]);
+                onClick={async () => {
+                  setDeviationLoading(true);
+                  try {
+                    const coords = await calculerDeviation(troncons);
+                    if (coords && coords.length >= 2) {
+                      const t: Troncon = {
+                        voie_id: `deviation_${Date.now()}`,
+                        impact: "deviation",
+                        origine: "auto",
+                        coordonnees: coords,
+                        geometrie_type: "LineString",
+                        label: "Itineraire de deviation",
+                      };
+                      onAdd(t);
+                    }
+                  } finally {
+                    setDeviationLoading(false);
+                  }
                 }}
+                disabled={deviationLoading}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
                   padding: "7px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                  cursor: "pointer", width: "100%",
+                  cursor: deviationLoading ? "wait" : "pointer", width: "100%",
                   background: "#7C3AED", color: "#fff", border: "none",
+                  opacity: deviationLoading ? 0.7 : 1,
                   fontFamily: "'IBM Plex Sans', sans-serif",
                 }}
               >
-                <ArrowRightLeft size={11} /> Proposer une deviation
+                <ArrowRightLeft size={11} /> {deviationLoading ? "Calcul en cours..." : "Proposer une deviation"}
               </button>
               <button
                 onClick={() => {
