@@ -387,6 +387,11 @@ export default function NouveauArretePage() {
                 i !== phaseActive ? ph : { ...ph, troncons: ph.troncons.map((t, j) => j === idx ? { ...t, impact } : t) }
               ));
             }}
+            onUpdateCoords={(idx, coords) => {
+              setPhases((prev) => prev.map((ph, i) =>
+                i !== phaseActive ? ph : { ...ph, troncons: ph.troncons.map((t, j) => j === idx ? { ...t, coordonnees: coords } : t) }
+              ));
+            }}
           />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
             <button className="btn-ghost" onClick={() => setEtape(1)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
