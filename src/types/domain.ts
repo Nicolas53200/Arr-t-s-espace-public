@@ -38,6 +38,9 @@ export interface Troncon {
   segment_debut?: string;
   segment_fin?: string;
   origine?: "auto" | "manuel";
+  coordonnees?: [number, number][];
+  geometrie_type?: "LineString" | "Polygon";
+  label?: string;
 }
 
 export interface Phase {
