@@ -7,7 +7,8 @@
  *
  * Ce module remplace les données mock hardcodées.
  */
-import type { TenantInfo, User } from "@/types";
+import type { TenantInfo, User, Reference } from "@/types";
+import { creerBasesLegalesNationales } from "@/data/bases-legales";
 
 // ──── Types internes ────
 
@@ -34,6 +35,7 @@ export interface CollectiviteRegistre {
 
 const CLE_COLLECTIVITES = "registre_collectivites";
 const CLE_UTILISATEURS = "registre_utilisateurs";
+const CLE_REFERENCES_PREFIX = "registre_refs_";
 
 // ──── Helpers ────
 
@@ -107,6 +109,10 @@ export function ajouterCollectivite(data: {
     tenant_id: id,
   });
   sauvegarderUtilisateurs(utilisateurs);
+
+  // Injecter les bases légales nationales
+  const basesLegales = creerBasesLegalesNationales(id);
+  sauvegarderReferences(id, basesLegales);
 
   return nouvelle;
 }
@@ -204,10 +210,43 @@ export function getCommunes(): CommuneRegistre[] {
     }));
 }
 
+// ──── Références par tenant ────
+
+/** Retourne les références permanentes d'un tenant. */
+export function getReferences(tenantId: string): Reference[] {
+  return lire<Reference[]>(`${CLE_REFERENCES_PREFIX}${tenantId}`, []);
+}
+
+/** Sauvegarde les références d'un tenant. */
+export function sauvegarderReferences(tenantId: string, refs: Reference[]): void {
+  ecrire(`${CLE_REFERENCES_PREFIX}${tenantId}`, refs);
+}
+
+/** Ajoute une référence à un tenant. */
+export function ajouterReference(tenantId: string, ref: Reference): void {
+  const refs = getReferences(tenantId);
+  refs.push(ref);
+  sauvegarderReferences(tenantId, refs);
+}
+
+/** Met à jour une référence d'un tenant. */
+export function majReference(tenantId: string, refId: string, updates: Partial<Reference>): void {
+  const refs = getReferences(tenantId);
+  const maj = refs.map((r) => (r.id === refId ? { ...r, ...updates } : r));
+  sauvegarderReferences(tenantId, maj);
+}
+
 // ──── Réinitialisation ────
 
 /** Efface toutes les données du registre (utile pour les tests). */
 export function reinitialiser(): void {
+  // Supprimer les clés de références par tenant
+  const keys = Object.keys(localStorage);
+  for (const key of keys) {
+    if (key.startsWith(CLE_REFERENCES_PREFIX)) {
+      localStorage.removeItem(key);
+    }
+  }
   localStorage.removeItem(CLE_COLLECTIVITES);
   localStorage.removeItem(CLE_UTILISATEURS);
 }
