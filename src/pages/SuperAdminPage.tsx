@@ -1,39 +1,18 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Plus, Copy, Check, ArrowLeft, X, ToggleLeft, ToggleRight, Mail, Key } from "lucide-react";
+import { Building2, Plus, Copy, Check, ArrowLeft, X, ToggleLeft, ToggleRight, Mail, Key, Lock } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-
-interface Collectivite {
-  id: string;
-  nom: string;
-  code_postal: string;
-  siren: string;
-  email_admin: string;
-  code_acces: string;
-  active: boolean;
-  date_creation: string;
-}
-
-const COLLECTIVITES_INITIALES: Collectivite[] = [
-  { id: "tenant_saint_avoye", nom: "Ville de Saint-Avoye", code_postal: "56000", siren: "215600001", email_admin: "admin@saint-avoye.fr", code_acces: "SAINT-AVOYE-2026", active: true, date_creation: "2026-01-15" },
-  { id: "tenant_vannes", nom: "Ville de Vannes", code_postal: "56000", siren: "215600002", email_admin: "admin@vannes.fr", code_acces: "VANNES-2026", active: true, date_creation: "2026-03-01" },
-  { id: "tenant_lorient", nom: "Ville de Lorient", code_postal: "56100", siren: "215601001", email_admin: "admin@lorient.fr", code_acces: "LORIENT-2026", active: false, date_creation: "2026-04-10" },
-];
-
-function genererCode(nom: string): string {
-  const slug = nom
-    .toUpperCase()
-    .replace(/^VILLE DE /, "")
-    .replace(/[^A-Z0-9]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/(^-|-$)/g, "");
-  return `${slug}-${new Date().getFullYear()}`;
-}
+import {
+  getCollectivites,
+  ajouterCollectivite as registreAjouter,
+  toggleCollectivite as registreToggle,
+  type CollectiviteRegistre,
+} from "@/lib/registre";
 
 export default function SuperAdminPage() {
   const navigate = useNavigate();
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const [collectivites, setCollectivites] = useState<Collectivite[]>([...COLLECTIVITES_INITIALES]);
+  const [collectivites, setCollectivites] = useState<CollectiviteRegistre[]>(() => getCollectivites());
   const [modalAjout, setModalAjout] = useState(false);
   const [copie, setCopie] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -44,8 +23,11 @@ export default function SuperAdminPage() {
     return null;
   }
 
+  const recharger = useCallback(() => setCollectivites(getCollectivites()), []);
+
   function toggleActive(id: string) {
-    setCollectivites((prev) => prev.map((c) => c.id === id ? { ...c, active: !c.active } : c));
+    registreToggle(id);
+    recharger();
   }
 
   function copierCode(code: string) {
@@ -55,18 +37,8 @@ export default function SuperAdminPage() {
   }
 
   function ajouterCollectivite(data: { nom: string; code_postal: string; siren: string; email_admin: string }) {
-    const code = genererCode(data.nom);
-    const nouvelle: Collectivite = {
-      id: `tenant_${Date.now()}`,
-      nom: data.nom,
-      code_postal: data.code_postal,
-      siren: data.siren,
-      email_admin: data.email_admin,
-      code_acces: code,
-      active: true,
-      date_creation: new Date().toISOString().slice(0, 10),
-    };
-    setCollectivites((prev) => [...prev, nouvelle]);
+    const nouvelle = registreAjouter(data);
+    recharger();
     setModalAjout(false);
     setDetailId(nouvelle.id);
   }
@@ -183,8 +155,13 @@ export default function SuperAdminPage() {
                       <span style={{ fontSize: 13, color: "#1C1F1B" }}>{c.email_admin}</span>
                     </div>
                   </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <Lock size={14} color="#1E3A5F" />
+                    <span style={{ fontSize: 12, color: "#6B6A60" }}>Mot de passe :</span>
+                    <span style={{ fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", color: "#1E3A5F", fontWeight: 600 }}>{c.mot_de_passe}</span>
+                  </div>
                   <p style={{ fontSize: 11, color: "#6B6A60", margin: "10px 0 0", lineHeight: 1.5 }}>
-                    Communiquez ce code a l'administrateur de la collectivite. Il devra le saisir sur la page d'accueil d'Actes360 pour acceder a l'application, puis se connecter avec son email.
+                    Communiquez le code d'acces, l'email et le mot de passe a l'administrateur de la collectivite. Il devra saisir le code sur la page d'accueil d'Actes360, puis se connecter avec ses identifiants.
                   </p>
                 </div>
               )}

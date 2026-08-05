@@ -114,7 +114,12 @@ export function ouvrirApercuPdf(
   const commune = extraireNomCommune(nomCommune);
   const refsActives = references.filter((r) => r.actif);
 
-  const visasHtml = refsActives
+  // Trier : bases légales nationales d'abord, puis références locales
+  const basesLegales = refsActives.filter((r) => r.categorie === "base_legale");
+  const refsLocales = refsActives.filter((r) => r.categorie !== "base_legale");
+  const refsTriees = [...basesLegales, ...refsLocales];
+
+  const visasHtml = refsTriees
     .map(
       (r) =>
         `<p class="visa">VU ${escapeHtml(r.label)} (n° ${escapeHtml(r.numero)} du ${formatDateFr(r.date)}) ;</p>`,

@@ -13,7 +13,7 @@ import { AUJOURD_HUI } from "@/config/constants";
 import { TYPES_ARRETE } from "@/data/types-arrete";
 import { TYPES_IMPACT } from "@/data/types-impact";
 import { VOIES } from "@/data/voies";
-import { COMMUNES } from "@/data/communes-publiques";
+import { getCommunes } from "@/lib/registre";
 import { genNum } from "@/lib/arrete";
 import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
 import CarteDessin from "@/components/carte/CarteDessin";
@@ -50,6 +50,7 @@ export default function NouveauArretePage() {
   const { references } = useReferences();
   const { tenant } = useTenant();
   const toast = useToast();
+  const COMMUNES = useMemo(() => getCommunes(), []);
 
   const arreteExistant = id ? arretes.find((a) => a.id === id) : null;
   const typeInitial = arreteExistant ? TYPES_ARRETE.find((t) => t.code === arreteExistant.type_code) : null;

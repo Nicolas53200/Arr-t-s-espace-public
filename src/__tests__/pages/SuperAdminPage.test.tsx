@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SuperAdminPage from "@/pages/SuperAdminPage";
+import { ajouterCollectivite, reinitialiser } from "@/lib/registre";
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -17,6 +18,21 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+function seedRegistre() {
+  ajouterCollectivite({
+    nom: "Ville de Saint-Avoye",
+    code_postal: "56000",
+    siren: "215600001",
+    email_admin: "admin@saint-avoye.fr",
+  });
+  ajouterCollectivite({
+    nom: "Ville de Vannes",
+    code_postal: "56000",
+    siren: "215600002",
+    email_admin: "admin@vannes.fr",
+  });
+}
+
 function renderPage() {
   localStorage.setItem("superadmin_auth", "true");
   return render(
@@ -29,6 +45,7 @@ function renderPage() {
 describe("SuperAdminPage", () => {
   beforeEach(() => {
     localStorage.clear();
+    reinitialiser();
   });
 
   it("redirige si pas superadmin", () => {
@@ -52,11 +69,11 @@ describe("SuperAdminPage", () => {
     expect(screen.getByText("Suspendues")).toBeDefined();
   });
 
-  it("affiche les collectivites initiales", () => {
+  it("affiche les collectivites du registre", () => {
+    seedRegistre();
     renderPage();
     expect(screen.getByText("Ville de Saint-Avoye")).toBeDefined();
     expect(screen.getByText("Ville de Vannes")).toBeDefined();
-    expect(screen.getByText("Ville de Lorient")).toBeDefined();
   });
 
   it("affiche le bouton Nouvelle collectivite", () => {

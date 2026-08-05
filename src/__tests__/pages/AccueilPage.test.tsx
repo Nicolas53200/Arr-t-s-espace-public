@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import AccueilPage from "@/pages/AccueilPage";
 import { renderWithProviders } from "@/__tests__/helpers/renderWithProviders";
+import { reinitialiser } from "@/lib/registre";
 
 describe("AccueilPage", () => {
   beforeEach(() => {
     localStorage.clear();
+    reinitialiser();
   });
 
   it("affiche le titre principal", () => {
@@ -25,13 +27,12 @@ describe("AccueilPage", () => {
     renderWithProviders(<AccueilPage />);
     expect(screen.getByText(/Nouvel arrêté/)).toBeDefined();
     expect(screen.getAllByText(/Arrêtés actifs/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/Carte/)).toBeDefined();
+    expect(screen.getByText(/Carte & calendrier/)).toBeDefined();
     expect(screen.getByText(/Historique/)).toBeDefined();
   });
 
-  it("affiche la section arretes actifs recents", () => {
+  it("affiche la section carte publique", () => {
     renderWithProviders(<AccueilPage />);
-    expect(screen.getByText("Arrêtés actifs récents")).toBeDefined();
-    expect(screen.getByText("Voir tous")).toBeDefined();
+    expect(screen.getByText("Carte publique inter-communes")).toBeDefined();
   });
 });

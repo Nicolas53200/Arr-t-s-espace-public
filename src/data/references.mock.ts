@@ -76,6 +76,7 @@ export const REFS_INITIALES: Reference[] = [
 ];
 
 export const CATEGORIES_REF: CategorieRef[] = [
+  { code: "base_legale", label: "Bases légales", icon: "Scale", couleur: "#7C3AED" },
   { code: "delegation", label: "Délégations", icon: "Shield", couleur: "#1E3A5F" },
   { code: "circulation", label: "Circulation permanente", icon: "MapPin", couleur: "#B91C1C" },
   { code: "stationnement", label: "Stationnement", icon: "Archive", couleur: "#D9730D" },

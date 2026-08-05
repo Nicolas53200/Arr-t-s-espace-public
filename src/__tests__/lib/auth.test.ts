@@ -1,24 +1,23 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { authenticateUser } from "@/contexts/AuthContext";
+import { ajouterCollectivite, reinitialiser } from "@/lib/registre";
 
 describe("authenticateUser", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    reinitialiser();
+    ajouterCollectivite({
+      nom: "Ville de Saint-Avoye",
+      code_postal: "56000",
+      siren: "215600001",
+      email_admin: "admin@saint-avoye.fr",
+    });
+  });
+
   it("retourne un utilisateur admin avec les bons identifiants", () => {
     const user = authenticateUser("admin@saint-avoye.fr", "admin123");
     expect(user.role).toBe("admin");
     expect(user.email).toBe("admin@saint-avoye.fr");
-    expect(user.nom).toBe("Admin SaaS");
-  });
-
-  it("retourne un utilisateur redacteur avec les bons identifiants", () => {
-    const user = authenticateUser("redacteur@saint-avoye.fr", "redac123");
-    expect(user.role).toBe("redacteur");
-    expect(user.email).toBe("redacteur@saint-avoye.fr");
-  });
-
-  it("retourne un utilisateur lecteur avec les bons identifiants", () => {
-    const user = authenticateUser("lecteur@saint-avoye.fr", "lect123");
-    expect(user.role).toBe("lecteur");
-    expect(user.email).toBe("lecteur@saint-avoye.fr");
   });
 
   it("lance une erreur avec un email invalide", () => {

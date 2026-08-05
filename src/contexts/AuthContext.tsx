@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { User, Role, Permission } from "@/types";
 import { hasPermission } from "@/lib/permissions";
+import { authentifier } from "@/lib/registre";
 
 interface AuthContextValue {
   user: User | null;
@@ -14,56 +15,12 @@ interface AuthContextValue {
 
 const AUTH_STORAGE_KEY = "arretes_auth_user";
 
-interface DemoCredential {
-  email: string;
-  password: string;
-  user: User;
-}
-
-const DEMO_CREDENTIALS: DemoCredential[] = [
-  {
-    email: "admin@saint-avoye.fr",
-    password: "admin123",
-    user: {
-      id: "u_admin",
-      nom: "Admin SaaS",
-      email: "admin@saint-avoye.fr",
-      role: "admin",
-      tenant_id: "tenant_saint_avoye",
-    },
-  },
-  {
-    email: "redacteur@saint-avoye.fr",
-    password: "redac123",
-    user: {
-      id: "u_redacteur",
-      nom: "M. Lefèvre",
-      email: "redacteur@saint-avoye.fr",
-      role: "redacteur",
-      tenant_id: "tenant_saint_avoye",
-    },
-  },
-  {
-    email: "lecteur@saint-avoye.fr",
-    password: "lect123",
-    user: {
-      id: "u_lecteur",
-      nom: "M. Dupont",
-      email: "lecteur@saint-avoye.fr",
-      role: "lecteur",
-      tenant_id: "tenant_saint_avoye",
-    },
-  },
-];
-
 export function authenticateUser(email: string, password: string): User {
-  const match = DEMO_CREDENTIALS.find(
-    (c) => c.email === email && c.password === password,
-  );
-  if (!match) {
+  const user = authentifier(email, password);
+  if (!user) {
     throw new Error("Identifiants invalides");
   }
-  return match.user;
+  return user;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);

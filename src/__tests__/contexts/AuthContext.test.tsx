@@ -2,31 +2,33 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { AuthProvider, useAuth, authenticateUser } from "@/contexts/AuthContext";
+import { ajouterCollectivite, reinitialiser } from "@/lib/registre";
 
 function wrapper({ children }: { children: ReactNode }) {
   return <AuthProvider>{children}</AuthProvider>;
 }
 
+/** Ajoute une collectivité de test dans le registre */
+function seedRegistre() {
+  ajouterCollectivite({
+    nom: "Ville de Saint-Avoye",
+    code_postal: "56000",
+    siren: "215600001",
+    email_admin: "admin@saint-avoye.fr",
+  });
+}
+
 describe("AuthContext", () => {
   beforeEach(() => {
     localStorage.clear();
+    reinitialiser();
+    seedRegistre();
   });
 
   describe("authenticateUser", () => {
     it("retourne l'utilisateur admin pour les bons identifiants", () => {
       const user = authenticateUser("admin@saint-avoye.fr", "admin123");
       expect(user.role).toBe("admin");
-      expect(user.id).toBe("u_admin");
-    });
-
-    it("retourne l'utilisateur redacteur", () => {
-      const user = authenticateUser("redacteur@saint-avoye.fr", "redac123");
-      expect(user.role).toBe("redacteur");
-    });
-
-    it("retourne l'utilisateur lecteur", () => {
-      const user = authenticateUser("lecteur@saint-avoye.fr", "lect123");
-      expect(user.role).toBe("lecteur");
     });
 
     it("lance une erreur pour des identifiants invalides", () => {
@@ -92,11 +94,11 @@ describe("AuthContext", () => {
       expect(result.current.can("arrete:create")).toBe(false);
 
       await act(async () => {
-        await result.current.login("lecteur@saint-avoye.fr", "lect123");
+        await result.current.login("admin@saint-avoye.fr", "admin123");
       });
       expect(result.current.can("arrete:view")).toBe(true);
-      expect(result.current.can("arrete:create")).toBe(false);
-      expect(result.current.can("admin:manage")).toBe(false);
+      expect(result.current.can("arrete:create")).toBe(true);
+      expect(result.current.can("admin:manage")).toBe(true);
     });
 
     it("restaure la session depuis localStorage", async () => {

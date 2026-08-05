@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import LoginPage from "@/pages/LoginPage";
+import { reinitialiser } from "@/lib/registre";
 
 function renderLogin() {
   return render(
@@ -20,6 +21,7 @@ function renderLogin() {
 describe("LoginPage", () => {
   beforeEach(() => {
     localStorage.clear();
+    reinitialiser();
   });
 
   it("affiche le formulaire de connexion", () => {
@@ -29,10 +31,9 @@ describe("LoginPage", () => {
     expect(screen.getByText("Se connecter")).toBeDefined();
   });
 
-  it("affiche les comptes de demonstration", () => {
+  it("affiche le lien retour a l'accueil", () => {
     renderLogin();
-    expect(screen.getByText("Comptes de demonstration")).toBeDefined();
-    expect(screen.getByText("admin@saint-avoye.fr / admin123")).toBeDefined();
+    expect(screen.getByText(/Retour a l'accueil/)).toBeDefined();
   });
 
   it("a les champs email et password requis", () => {

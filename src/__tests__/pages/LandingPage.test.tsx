@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import LandingPage from "@/pages/LandingPage";
+import { reinitialiser } from "@/lib/registre";
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -28,6 +29,7 @@ function renderLanding() {
 describe("LandingPage", () => {
   beforeEach(() => {
     localStorage.clear();
+    reinitialiser();
   });
 
   it("affiche le titre Actes360", () => {
@@ -79,8 +81,8 @@ describe("LandingPage", () => {
     expect(screen.getByText("Code incorrect")).toBeDefined();
   });
 
-  it("affiche le code de demo", () => {
+  it("affiche l'indication de saisie du code", () => {
     renderLanding();
-    expect(screen.getByText("SAINT-AVOYE-2026")).toBeDefined();
+    expect(screen.getByText(/Saisissez le code fourni/)).toBeDefined();
   });
 });

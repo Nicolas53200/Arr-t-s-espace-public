@@ -2,12 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Shield, FileText, Map, BarChart3, Settings, X, Lock } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-
-const CODES_ACCES: Record<string, string> = {
-  "SAINT-AVOYE-2026": "tenant_saint_avoye",
-  "VANNES-2026": "tenant_vannes",
-  "LORIENT-2026": "tenant_lorient",
-};
+import { validerCodeAcces } from "@/lib/registre";
 
 const CODE_SUPERADMIN = "IGNISNOVA";
 
@@ -26,7 +21,7 @@ export default function LandingPage() {
       setErreur("Veuillez entrer votre code d'acces");
       return;
     }
-    const tenantId = CODES_ACCES[upper];
+    const tenantId = validerCodeAcces(upper);
     if (tenantId) {
       localStorage.setItem("acces_tenant", tenantId);
       localStorage.setItem("acces_code", upper);
@@ -130,7 +125,7 @@ export default function LandingPage() {
           </div>
           {erreur && <p style={{ fontSize: 12, color: "#DC2626", margin: "8px 0 0" }}>{erreur}</p>}
           <p style={{ fontSize: 11, color: "#A6A399", margin: "12px 0 0" }}>
-            Code de demo : <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: "#6B6A60" }}>SAINT-AVOYE-2026</span>
+            Saisissez le code fourni par l'administrateur de la plateforme.
           </p>
         </div>
       </div>

@@ -30,7 +30,7 @@ export type CodeTypeArrete =
   | "occupation_dp"
   | "demenagement";
 
-export type CategorieReference = "delegation" | "circulation" | "stationnement";
+export type CategorieReference = "base_legale" | "delegation" | "circulation" | "stationnement";
 
 export interface Troncon {
   voie_id: string;

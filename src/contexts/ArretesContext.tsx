@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from "react";
 import type { Arrete, StatutArrete } from "@/types";
-import { ARRETES_INITIAUX } from "@/data/arretes.mock";
 import { estActif, estEnHistorique } from "@/lib/arrete";
 import { peutTransitionner } from "@/lib/workflow";
 import { ENV } from "@/config/env";
@@ -80,7 +79,7 @@ export function ArretesProvider({ children, useMock }: ArretesProviderProps) {
   const shouldUseMock = useMock ?? !ENV.USE_MOCK ? true : false;
   const [arretes, dispatch] = useReducer(
     arretesReducer,
-    shouldUseMock ? ARRETES_INITIAUX : [],
+    [],
   );
   const [loading, setLoading] = useState(!shouldUseMock);
   const [error, setError] = useState<string | null>(null);

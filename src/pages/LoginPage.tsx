@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from "react";
+import { useState, useMemo, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { Building2, Mail, Lock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { ROUTES } from "@/config/routes";
+import { getCollectivites } from "@/lib/registre";
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -12,6 +13,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(false);
+
+  const nomTenant = useMemo(() => {
+    const tenantId = localStorage.getItem("acces_tenant");
+    if (!tenantId) return "Collectivité";
+    const collectivites = getCollectivites();
+    const c = collectivites.find((col) => col.id === tenantId);
+    return c?.nom ?? "Collectivité";
+  }, []);
 
   if (isAuthenticated) {
     return <Navigate to={ROUTES.accueil} replace />;
@@ -79,7 +88,7 @@ export default function LoginPage() {
               margin: "0 0 2px",
             }}
           >
-            Ville de Saint-Avoye
+            {nomTenant}
           </p>
           <p
             className="fd"
@@ -217,24 +226,23 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Demo hint */}
+        {/* Lien retour */}
         <div
           style={{
             marginTop: 24,
-            padding: "12px 14px",
-            background: "#F5F3EE",
-            borderRadius: 6,
-            fontSize: 11,
-            color: "#6B6A60",
-            lineHeight: 1.5,
+            textAlign: "center",
           }}
         >
-          <p style={{ margin: "0 0 4px", fontWeight: 600, fontSize: 11 }}>
-            Comptes de demonstration
-          </p>
-          <p style={{ margin: 0 }}>admin@saint-avoye.fr / admin123</p>
-          <p style={{ margin: 0 }}>redacteur@saint-avoye.fr / redac123</p>
-          <p style={{ margin: 0 }}>lecteur@saint-avoye.fr / lect123</p>
+          <a
+            href="/bienvenue"
+            style={{
+              fontSize: 12,
+              color: "#6B6A60",
+              textDecoration: "none",
+            }}
+          >
+            ← Retour a l'accueil
+          </a>
         </div>
       </div>
     </div>
