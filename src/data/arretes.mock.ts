@@ -12,6 +12,8 @@ export const ARRETES_INITIAUX: Arrete[] = [
     date_creation: "2026-06-18",
     date_debut: "2026-07-05",
     date_fin: "2026-07-05",
+    commune: "Saint-Avoye",
+    commune_id: "tenant_saint_avoye",
     voies: ["Rue de la République (N)", "Avenue Foch (O)", "Quai Sud"],
     troncons: [
       { voie_id: "v1", impact: "circulation_interdite" },
@@ -33,6 +35,8 @@ export const ARRETES_INITIAUX: Arrete[] = [
     date_creation: "2026-06-01",
     date_debut: "2026-06-20",
     date_fin: "2026-07-15",
+    commune: "Saint-Avoye",
+    commune_id: "tenant_saint_avoye",
     voies: ["Rue de la République (N)", "Rue de la République (S)"],
     troncons: [
       { voie_id: "v1", impact: "circulation_interdite" },
@@ -52,6 +56,8 @@ export const ARRETES_INITIAUX: Arrete[] = [
     date_creation: "2026-05-20",
     date_debut: "2026-06-21",
     date_fin: "2026-06-22",
+    commune: "Saint-Avoye",
+    commune_id: "tenant_saint_avoye",
     voies: ["Place de la Mairie", "Avenue Foch (O)", "Rue de la Paix"],
     troncons: [
       { voie_id: "v9", impact: "zone_reservee" },
@@ -73,6 +79,8 @@ export const ARRETES_INITIAUX: Arrete[] = [
     date_creation: "2026-04-10",
     date_debut: "2026-04-15",
     date_fin: "2026-12-31",
+    commune: "Saint-Avoye",
+    commune_id: "tenant_saint_avoye",
     voies: ["Place du Marché"],
     troncons: [{ voie_id: "v10", impact: "stationnement_interdit" }],
     versions: [
@@ -97,6 +105,8 @@ export const ARRETES_INITIAUX: Arrete[] = [
     date_creation: "2026-03-05",
     date_debut: "2026-03-05",
     date_fin: "2026-03-08",
+    commune: "Saint-Avoye",
+    commune_id: "tenant_saint_avoye",
     voies: ["Rue des Tanneurs"],
     troncons: [{ voie_id: "v5", impact: "circulation_interdite" }],
     versions: [],
@@ -117,6 +127,8 @@ export const ARRETES_INITIAUX: Arrete[] = [
     date_creation: "2026-03-01",
     date_debut: "2026-03-15",
     date_fin: "2026-03-15",
+    commune: "Saint-Avoye",
+    commune_id: "tenant_saint_avoye",
     voies: ["Place de la Mairie"],
     troncons: [
       { voie_id: "v9", impact: "zone_reservee" },
@@ -136,6 +148,8 @@ export const ARRETES_INITIAUX: Arrete[] = [
     date_creation: "2026-06-18",
     date_debut: "2026-08-10",
     date_fin: "2026-09-05",
+    commune: "Saint-Avoye",
+    commune_id: "tenant_saint_avoye",
     voies: ["Avenue Foch (E)", "Avenue Foch (O)"],
     troncons: [
       { voie_id: "v3", impact: "circulation_interdite" },
@@ -155,6 +169,8 @@ export const ARRETES_INITIAUX: Arrete[] = [
     date_creation: "2026-06-18",
     date_debut: "2026-09-20",
     date_fin: "2026-09-20",
+    commune: "Saint-Avoye",
+    commune_id: "tenant_saint_avoye",
     voies: ["Rue Victor Hugo", "Rue de la Paix", "Quai Sud"],
     troncons: [
       { voie_id: "v6", impact: "circulation_interdite" },

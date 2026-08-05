@@ -37,6 +37,7 @@ export default function ArreteLigne({ arrete, onModifier, onAbroger, compact, ar
             {expire && arrete.statut !== "abroge" && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 20, fontSize: 10, fontWeight: 600, background: "#F3F4F6", color: "#6B7280", whiteSpace: "nowrap" }}><Archive size={9} />Archive auto.</span>}
             <span className="fm" style={{ fontSize: 10, color: "#6B6A60" }}>{arrete.numero}</span>
             <span style={{ fontSize: 10, color: "#A6A399" }}>{arrete.type_label}</span>
+            {arrete.commune && <span style={{ fontSize: 10, color: "#1E3A5F", background: "#EBF0F7", padding: "1px 6px", borderRadius: 10, whiteSpace: "nowrap" }}>{arrete.commune}</span>}
           </div>
           <p style={{ fontWeight: 600, fontSize: 13, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>{arrete.titre}</p>
           {!compact && <p style={{ fontSize: 11, color: "#6B6A60", margin: "0 0 2px" }}>{fmtDate(arrete.date_debut)} {"→"} {fmtDate(arrete.date_fin)} {"·"} {arrete.cree_par}</p>}

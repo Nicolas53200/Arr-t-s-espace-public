@@ -77,6 +77,8 @@ export interface Arrete {
   date_creation: string;
   date_debut: string;
   date_fin: string;
+  commune?: string;
+  commune_id?: string;
   voies: string[];
   troncons: Troncon[];
   versions: VersionArrete[];
