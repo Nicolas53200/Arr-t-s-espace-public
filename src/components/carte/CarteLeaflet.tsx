@@ -21,7 +21,7 @@ interface CarteLeafletProps {
   filtreType?: string;
 }
 
-const CENTRE_VILLE: [number, number] = [47.6545, -2.7563];
+const CENTRE_VILLE: [number, number] = [47.6565, -2.7570];
 const ZOOM_DEFAUT = 16;
 
 // Impact color mapping (same as CarteImpacts)

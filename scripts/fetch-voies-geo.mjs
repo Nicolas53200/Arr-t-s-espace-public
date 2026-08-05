@@ -1,0 +1,167 @@
+#!/usr/bin/env node
+// Récupère les géométries réelles des rues de Vannes via l'API Nominatim d'OSM.
+// Usage : node scripts/fetch-voies-geo.mjs
+// Respecte la politique Nominatim : 1 requête / seconde, User-Agent explicite.
+
+import { writeFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const OUT = join(__dirname, "..", "src", "data", "voies-geo.ts");
+
+const VOIES = [
+  { voie_id: "v1", nom: "Rue de la République (N)", real: "Rue Le Hellec, Vannes", type: "rue", split: "north" },
+  { voie_id: "v2", nom: "Rue de la République (S)", real: "Rue Le Hellec, Vannes", type: "rue", split: "south" },
+  { voie_id: "v3", nom: "Avenue Foch (O)", real: "Rue des Tribunaux, Vannes", type: "avenue", split: "west" },
+  { voie_id: "v4", nom: "Avenue Foch (E)", real: "Rue des Tribunaux, Vannes", type: "avenue", split: "east" },
+  { voie_id: "v5", nom: "Rue des Tanneurs", real: "Rue Billault, Vannes", type: "rue" },
+  { voie_id: "v6", nom: "Rue Victor Hugo", real: "Rue Jeanne d'Arc, Vannes", type: "rue" },
+  { voie_id: "v7", nom: "Rue des Lilas", real: "Rue des Brice, Vannes", type: "rue" },
+  { voie_id: "v8", nom: "Rue du Commerce", real: "Rue Maréchal Leclerc, Vannes", type: "rue" },
+  { voie_id: "v9", nom: "Place de la Mairie", real: "Place des Lices, Vannes", type: "place" },
+  { voie_id: "v10", nom: "Place du Marché", real: "Place Gambetta, Vannes", type: "place" },
+  { voie_id: "v11", nom: "Rue Pasteur", real: "Rue Louis Pasteur, Vannes", type: "rue" },
+  { voie_id: "v12", nom: "Quai Sud", real: "Quai Bernard Moitessier, Vannes", type: "quai" },
+  { voie_id: "v13", nom: "Rue de la Paix", real: "Rue de la Monnaie, Vannes", type: "rue" },
+  { voie_id: "v14", nom: "Rue du Général de Gaulle", real: "Rue de la Fontaine, Vannes", type: "rue" },
+];
+
+const DELAY_MS = 1100; // respect Nominatim rate limit
+const UA = "ArretesEspacePublic/1.0 (demo, contact: dev@arrete.local)";
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Simplify a coordinate array to at most maxPts points. */
+function simplify(coords, maxPts = 15) {
+  if (coords.length <= maxPts) return coords;
+  const step = (coords.length - 1) / (maxPts - 1);
+  const result = [];
+  for (let i = 0; i < maxPts; i++) {
+    result.push(coords[Math.round(i * step)]);
+  }
+  return result;
+}
+
+/** Split a LineString coordinate array in half. */
+function splitCoords(coords, half) {
+  const mid = Math.floor(coords.length / 2);
+  if (half === "north" || half === "west") return coords.slice(0, mid + 1);
+  return coords.slice(mid);
+}
+
+async function fetchGeo(realName) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(realName)}&format=json&polygon_geojson=1&limit=1`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${realName}`);
+  const data = await res.json();
+  if (!data.length) return null;
+  return data[0].geojson;
+}
+
+async function main() {
+  console.log("Fetching street geometries from Nominatim...\n");
+  const results = [];
+  const cache = new Map();
+
+  for (const v of VOIES) {
+    let geojson;
+    if (cache.has(v.real)) {
+      geojson = cache.get(v.real);
+    } else {
+      console.log(`  → ${v.real}`);
+      geojson = await fetchGeo(v.real);
+      cache.set(v.real, geojson);
+      await sleep(DELAY_MS);
+    }
+
+    if (!geojson) {
+      console.warn(`  ⚠ No result for "${v.real}", skipping ${v.voie_id}`);
+      continue;
+    }
+
+    let coords;
+    let geoType;
+
+    if (geojson.type === "Polygon" || geojson.type === "MultiPolygon") {
+      // Places: take the outer ring
+      const ring = geojson.type === "MultiPolygon" ? geojson.coordinates[0][0] : geojson.coordinates[0];
+      coords = simplify(ring.map(([lng, lat]) => [lng, lat]), 12);
+      geoType = "Polygon";
+    } else if (geojson.type === "LineString") {
+      coords = geojson.coordinates.map(([lng, lat]) => [lng, lat]);
+      if (v.split) coords = splitCoords(coords, v.split);
+      coords = simplify(coords, 12);
+      geoType = "LineString";
+    } else if (geojson.type === "MultiLineString") {
+      // Flatten all segments into one line
+      const all = geojson.coordinates.flatMap((seg) => seg.map(([lng, lat]) => [lng, lat]));
+      coords = v.split ? splitCoords(all, v.split) : all;
+      coords = simplify(coords, 12);
+      geoType = "LineString";
+    } else {
+      console.warn(`  ⚠ Unexpected geometry type "${geojson.type}" for ${v.voie_id}`);
+      continue;
+    }
+
+    results.push({ ...v, geoType, coords });
+    console.log(`  ✓ ${v.voie_id} ${v.nom} — ${coords.length} points (${geoType})`);
+  }
+
+  // Generate TypeScript
+  const lines = [
+    `// GeoJSON geometries for each voie in Saint-Avoye (mapped to real Vannes streets)`,
+    `// Auto-generated by scripts/fetch-voies-geo.mjs on ${new Date().toISOString().split("T")[0]}`,
+    `// Coordinates use GeoJSON convention: [longitude, latitude]`,
+    ``,
+    `export interface VoieGeo {`,
+    `  voie_id: string;`,
+    `  nom: string;`,
+    `  type: "rue" | "avenue" | "place" | "quai";`,
+    `  geometrie: {`,
+    `    type: "LineString" | "Polygon";`,
+    `    coordinates: [number, number][];`,
+    `  };`,
+    `}`,
+    ``,
+    `export const VOIES_GEO: VoieGeo[] = [`,
+  ];
+
+  for (const r of results) {
+    const coordStr = r.coords.map(([lng, lat]) => `        [${lng.toFixed(7)}, ${lat.toFixed(7)}],`).join("\n");
+    lines.push(`  {`);
+    lines.push(`    voie_id: "${r.voie_id}",`);
+    lines.push(`    nom: "${r.nom}",`);
+    lines.push(`    type: "${r.type}",`);
+    lines.push(`    geometrie: {`);
+    lines.push(`      type: "${r.geoType}",`);
+    lines.push(`      coordinates: [`);
+    lines.push(coordStr);
+    lines.push(`      ],`);
+    lines.push(`    },`);
+    lines.push(`  },`);
+  }
+
+  lines.push(`];`);
+  lines.push(``);
+  lines.push(`// Quick lookup by voie_id`);
+  lines.push(`const _index = new Map<string, VoieGeo>();`);
+  lines.push(`for (const v of VOIES_GEO) {`);
+  lines.push(`  _index.set(v.voie_id, v);`);
+  lines.push(`}`);
+  lines.push(``);
+  lines.push(`export function getVoieGeo(voieId: string): VoieGeo | undefined {`);
+  lines.push(`  return _index.get(voieId);`);
+  lines.push(`}`);
+  lines.push(``);
+
+  writeFileSync(OUT, lines.join("\n"), "utf-8");
+  console.log(`\n✅ Written ${results.length} voies to ${OUT}`);
+}
+
+main().catch((e) => {
+  console.error("❌", e);
+  process.exit(1);
+});

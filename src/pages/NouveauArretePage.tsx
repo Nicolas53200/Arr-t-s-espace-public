@@ -13,6 +13,7 @@ import { AUJOURD_HUI } from "@/config/constants";
 import { TYPES_ARRETE } from "@/data/types-arrete";
 import { TYPES_IMPACT } from "@/data/types-impact";
 import { VOIES } from "@/data/voies";
+import { COMMUNES } from "@/data/communes-publiques";
 import { genNum } from "@/lib/arrete";
 import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
 import CarteDessin from "@/components/carte/CarteDessin";
@@ -57,6 +58,7 @@ export default function NouveauArretePage() {
   const [typeArrete, setTypeArrete] = useState<TypeArrete | null>(typeInitial ?? null);
   const [valeurs, setValeurs] = useState<Record<string, string | boolean>>({});
   const [titreArrete, setTitreArrete] = useState(arreteExistant?.titre ?? "");
+  const [communeId, setCommuneId] = useState(arreteExistant?.commune_id ?? tenant.id);
   const [phases, setPhases] = useState<Phase[]>(() => {
     if (arreteExistant) {
       return [{
@@ -167,6 +169,7 @@ export default function NouveauArretePage() {
     setTypeArrete(t);
     setValeurs({});
     setTitreArrete("");
+    setCommuneId(tenant.id);
     phaseIdCounter.current = 1;
     setPhases([{ id: 1, label: t.multi_phases ? "Phase 1" : "Impact principal", date_debut: "", date_fin: "", localisation: "", troncons: [] }]);
     setPhaseActive(0);
@@ -236,12 +239,13 @@ export default function NouveauArretePage() {
     const num = genNum(typeArrete!.suffixe, nextIdx);
     const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.label || VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];
     const tronconsFlatMap = phases.flatMap((ph) => ph.troncons);
+    const communeChoisie = COMMUNES.find((c) => c.id === communeId);
     if (arreteExistant) {
       const h = { version: (arreteExistant.versions.length) + 1, date: AUJOURD_HUI.toISOString().split("T")[0]!, auteur: "M. Lefèvre", motif: motifModification || "Modification", titre: arreteExistant.titre };
-      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "modifie", voies: tv, troncons: tronconsFlatMap, versions: [h, ...arreteExistant.versions] } });
+      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "modifie", voies: tv, troncons: tronconsFlatMap, versions: [h, ...arreteExistant.versions], commune: communeChoisie?.nom ?? "", commune_id: communeId } });
       setDernierArrete({ numero: arreteExistant.numero, mode: "modifie", titre: titreArrete });
     } else {
-      const nouvel: Arrete = { id: `a${Date.now()}`, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: "M. Lefèvre", date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null };
+      const nouvel: Arrete = { id: `a${Date.now()}`, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: "M. Lefèvre", date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null };
       dispatch({ type: "ADD", arrete: nouvel });
       setDernierArrete({ numero: num, mode: "cree", titre: titreArrete || typeArrete!.label });
     }
@@ -309,6 +313,18 @@ export default function NouveauArretePage() {
             {touchedEtape1["titre"] && !erreurTitre.valide && (
               <p style={styleErreur}>{erreurTitre.erreur}</p>
             )}
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Commune <span style={{ color: "#B91C1C" }}>*</span></label>
+            <select
+              value={communeId}
+              onChange={(e) => setCommuneId(e.target.value)}
+              style={{ width: "100%", fontSize: 12, padding: "7px 10px", borderRadius: 5, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", background: "#FFFFFF" }}
+            >
+              {COMMUNES.map((c) => (
+                <option key={c.id} value={c.id}>{c.nom}</option>
+              ))}
+            </select>
           </div>
           {arreteExistant && (
             <div style={{ marginBottom: 12 }}>
@@ -534,7 +550,8 @@ export default function NouveauArretePage() {
               <div><p style={{ fontSize: 10, color: "#6B6A60", margin: 0 }}>Numero</p><p className="fm" style={{ fontSize: 14, color: "#1E3A5F", margin: 0 }}>{arreteExistant ? arreteExistant.numero : genNum(typeArrete.suffixe, nextIdx)}</p></div>
               <span style={{ fontSize: 10, background: "#EDEAE0", color: "#6B6A60", padding: "3px 8px", borderRadius: 4, alignSelf: "flex-start" }}>{typeArrete.label}</span>
             </div>
-            <p style={{ fontWeight: 600, fontSize: 13, margin: "0 0 8px" }}>{titreArrete}</p>
+            <p style={{ fontWeight: 600, fontSize: 13, margin: "0 0 4px" }}>{titreArrete}</p>
+            <p style={{ fontSize: 11, color: "#6B6A60", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 4 }}><MapPin size={11} />{COMMUNES.find((c) => c.id === communeId)?.nom ?? "—"}</p>
             {arreteExistant && <div style={{ background: "#FEF3C7", borderRadius: 5, padding: "8px 11px", marginBottom: 10 }}><p style={{ fontSize: 11, fontWeight: 600, margin: "0 0 2px", color: "#92400E" }}>Motif</p><p style={{ fontSize: 12, margin: 0, color: "#78350F" }}>{motifModification || "Non precise"}</p></div>}
             <div style={{ borderTop: "1px solid #E4E1D6", paddingTop: 10 }}>
               {phases.map((ph) => (
@@ -572,6 +589,8 @@ export default function NouveauArretePage() {
                   date_creation: AUJOURD_HUI.toISOString().split("T")[0]!,
                   date_debut: phases[0]?.date_debut || "",
                   date_fin: phases[phases.length - 1]?.date_fin || "",
+                  commune: COMMUNES.find((c) => c.id === communeId)?.nom ?? "",
+                  commune_id: communeId,
                   voies: tv,
                   troncons: tronconsFlatMap,
                   versions: [],
