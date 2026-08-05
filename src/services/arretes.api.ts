@@ -1,8 +1,7 @@
 import type { Arrete, ArreteFilters, ApiResponse } from "@/types";
 import { mockDelay } from "./api-client";
-import { ARRETES_INITIAUX } from "@/data/arretes.mock";
 
-let store = [...ARRETES_INITIAUX];
+let store: Arrete[] = [];
 
 export async function getArretes(
   filters?: ArreteFilters,

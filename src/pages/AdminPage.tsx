@@ -3,7 +3,7 @@ import { Users, Settings, Puzzle, Plus, X, Check, ToggleLeft, ToggleRight, Map, 
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { useToast } from "@/contexts/ToastContext";
-import { UTILISATEURS_MOCK } from "@/data/utilisateurs.mock";
+import { getUtilisateurs } from "@/lib/registre";
 import { fmtDate } from "@/lib/date";
 import Modal from "@/components/common/Modal";
 import type { Utilisateur, ConfigTenant } from "@/types";
@@ -53,7 +53,21 @@ export default function AdminPage() {
   const { can } = useAuth();
   const { tenant } = useTenant();
   const [onglet, setOnglet] = useState<OngletAdmin>("utilisateurs");
-  const [utilisateurs, setUtilisateurs] = useState<Utilisateur[]>([...UTILISATEURS_MOCK]);
+  const [utilisateurs, setUtilisateurs] = useState<Utilisateur[]>(() => {
+    const all = getUtilisateurs();
+    // Convertir User → Utilisateur avec les champs supplémentaires
+    return all
+      .filter((u) => u.tenant_id === tenant.id)
+      .map((u) => ({
+        id: u.id,
+        nom: u.nom,
+        email: u.email,
+        role: u.role,
+        actif: true,
+        derniere_connexion: new Date().toISOString(),
+        date_creation: new Date().toISOString().slice(0, 10),
+      }));
+  });
   const { updateTenant } = useTenant();
   const toast = useToast();
   const [config, setConfig] = useState<ConfigTenant>(() => configInitiale(tenant));
