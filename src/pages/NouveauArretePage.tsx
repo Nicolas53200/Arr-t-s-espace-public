@@ -21,6 +21,7 @@ import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact, ArticlePersonnalis
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { validerChamp } from "@/lib/validation";
 import type { RegleValidation } from "@/lib/validation";
+import { genererContenuJuridique, type ContexteArrete } from "@/lib/juridique-generator";
 
 interface VoieDeclaree {
   id: number;
@@ -519,23 +520,68 @@ export default function NouveauArretePage() {
           )}
           {/* ─── Section contenu juridique (arrêté complexe) ─── */}
           <div style={{ border: "1px solid #E4E1D6", borderRadius: 7, marginBottom: 14, overflow: "hidden" }}>
-            <button
-              onClick={() => setSectionJuridiqueOuverte((o) => !o)}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                width: "100%", padding: "10px 14px", background: sectionJuridiqueOuverte ? "#F7F6F2" : "#FFFFFF",
-                border: "none", cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {/* Barre titre + bouton générer */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "10px 14px", background: sectionJuridiqueOuverte ? "#F7F6F2" : "#FFFFFF",
+              borderBottom: sectionJuridiqueOuverte ? "1px solid #E4E1D6" : "none",
+            }}>
+              <button
+                onClick={() => setSectionJuridiqueOuverte((o) => !o)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, flex: 1,
+                  background: "none", border: "none", cursor: "pointer",
+                  fontFamily: "'IBM Plex Sans', sans-serif", padding: 0,
+                }}
+              >
                 <Scale size={13} color="#7C3AED" />
                 <span style={{ fontWeight: 600, fontSize: 12, color: "#1C1F1B" }}>Contenu juridique</span>
-                <span style={{ fontSize: 10, color: "#A6A399", fontWeight: 400 }}>
-                  (considerants, derogations, clauses)
-                </span>
-              </div>
-              <ChevronDown size={13} color="#6B6A60" style={{ transform: sectionJuridiqueOuverte ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
-            </button>
+                {!sectionJuridiqueOuverte && considerants.length === 0 && (
+                  <span style={{ fontSize: 10, color: "#A6A399", fontWeight: 400 }}>
+                    — remplissage automatique
+                  </span>
+                )}
+                {!sectionJuridiqueOuverte && considerants.length > 0 && (
+                  <span style={{ fontSize: 10, background: "#EDE9FE", color: "#7C3AED", padding: "1px 6px", borderRadius: 8, fontWeight: 600 }}>
+                    ✓ {considerants.length} considérant{considerants.length > 1 ? "s" : ""} · {derogations.length} dérogation{derogations.length > 1 ? "s" : ""}
+                  </span>
+                )}
+                <ChevronDown size={13} color="#6B6A60" style={{ transform: sectionJuridiqueOuverte ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", marginLeft: "auto" }} />
+              </button>
+              {/* Bouton de génération */}
+              <button
+                onClick={() => {
+                  const ctx: ContexteArrete = {
+                    type_code: typeArrete!.code,
+                    type_label: typeArrete!.label,
+                    titre: titreArrete,
+                    voies: voiesDeclarees.map((v) => v.nom).filter((n) => n.length > 0),
+                    impacts: [...new Set(voiesDeclarees.map((v) => v.impact))],
+                    valeurs,
+                  };
+                  const contenu = genererContenuJuridique(ctx);
+                  setConsiderants(contenu.considerants);
+                  setDerogations(contenu.derogations);
+                  setArticlesPerso(contenu.articles_personnalises);
+                  setClauseFourriere(contenu.clause_fourriere);
+                  setClauseRecours(contenu.clause_recours);
+                  setPerimetre(contenu.perimetre);
+                  setSectionJuridiqueOuverte(true);
+                  toast.success("Contenu juridique genere — verifiez et ajustez si besoin");
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                  background: "linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)",
+                  color: "#FFFFFF", border: "none", cursor: "pointer",
+                  fontFamily: "'IBM Plex Sans', sans-serif",
+                  boxShadow: "0 1px 3px rgba(124,58,237,0.3)",
+                  whiteSpace: "nowrap", flexShrink: 0, marginLeft: 8,
+                }}
+              >
+                ✨ Generer
+              </button>
+            </div>
 
             {sectionJuridiqueOuverte && (
               <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -552,17 +598,14 @@ export default function NouveauArretePage() {
                       <Plus size={11} /> Ajouter
                     </button>
                   </div>
-                  <p style={{ fontSize: 10, color: "#A6A399", margin: "0 0 6px" }}>
-                    Justifications specifiques de l'arrete (affluence, securite, acces secours…)
-                  </p>
                   {considerants.length === 0 && (
-                    <p style={{ fontSize: 11, color: "#A6A399", textAlign: "center", padding: "8px 0", margin: 0, fontStyle: "italic" }}>
-                      Aucun considerant. Les considerants par defaut seront utilises dans le PDF.
+                    <p style={{ fontSize: 11, color: "#A6A399", textAlign: "center", padding: "6px 0", margin: 0, fontStyle: "italic" }}>
+                      Cliquez sur ✨ Generer pour pre-remplir les considerants.
                     </p>
                   )}
                   {considerants.map((c, i) => (
                     <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "flex-start" }}>
-                      <span style={{ fontSize: 10, color: "#7C3AED", fontWeight: 600, marginTop: 7, flexShrink: 0 }}>CONSIDÉRANT</span>
+                      <span style={{ fontSize: 9, color: "#7C3AED", fontWeight: 600, marginTop: 7, flexShrink: 0, letterSpacing: "0.02em" }}>CONSIDÉRANT</span>
                       <textarea
                         rows={2}
                         value={c}
@@ -588,25 +631,10 @@ export default function NouveauArretePage() {
                       <Plus size={11} /> Ajouter
                     </button>
                   </div>
-                  <p style={{ fontSize: 10, color: "#A6A399", margin: "0 0 6px" }}>
-                    Exceptions aux restrictions (vehicules de secours, riverains, exposants…)
-                  </p>
                   {derogations.length === 0 && (
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {[
-                        "Véhicules de secours et de sécurité",
-                        "Riverains sur présentation d'un justificatif",
-                        "Exposants munis d'un macaron officiel",
-                      ].map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          onClick={() => setDerogations((prev) => [...prev, suggestion])}
-                          style={{ fontSize: 10, padding: "3px 8px", borderRadius: 12, border: "1px dashed #D8D5C8", background: "transparent", cursor: "pointer", color: "#6B6A60", fontFamily: "'IBM Plex Sans', sans-serif" }}
-                        >
-                          + {suggestion}
-                        </button>
-                      ))}
-                    </div>
+                    <p style={{ fontSize: 11, color: "#A6A399", textAlign: "center", padding: "6px 0", margin: 0, fontStyle: "italic" }}>
+                      Cliquez sur ✨ Generer pour pre-remplir les derogations adaptees.
+                    </p>
                   )}
                   {derogations.map((d, i) => (
                     <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "center" }}>
@@ -624,55 +652,59 @@ export default function NouveauArretePage() {
                 </div>
 
                 {/* Périmètre */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
-                    <MapPin size={11} color="#0369A1" /> Perimetre de la manifestation
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={perimetre}
-                    onChange={(e) => setPerimetre(e.target.value)}
-                    placeholder="La zone réglementée concerne l'intégralité du centre-bourg, dont les limites sont matérialisées par..."
-                    style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", resize: "vertical" }}
-                  />
-                </div>
+                {perimetre.length > 0 && (
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                      <MapPin size={11} color="#0369A1" /> Perimetre
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={perimetre}
+                      onChange={(e) => setPerimetre(e.target.value)}
+                      placeholder="La zone réglementée concerne..."
+                      style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", resize: "vertical" }}
+                    />
+                  </div>
+                )}
 
                 {/* Articles personnalisés */}
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                      <FileText size={11} color="#D9730D" /> Articles supplementaires
-                    </label>
-                    <button
-                      onClick={() => setArticlesPerso((prev) => [...prev, { id: `art_${Date.now()}`, titre: "", contenu: "" }])}
-                      style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, background: "none", border: "none", cursor: "pointer", color: "#1E3A5F", fontWeight: 600 }}
-                    >
-                      <Plus size={11} /> Ajouter
-                    </button>
-                  </div>
-                  {articlesPerso.map((art, i) => (
-                    <div key={art.id} style={{ background: "#FAFAF7", border: "1px solid #E4E1D6", borderRadius: 6, padding: "8px 10px", marginBottom: 6 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: "#D9730D" }}>ARTICLE</span>
-                        <button onClick={() => setArticlesPerso((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#A6A399" }}><X size={11} /></button>
-                      </div>
-                      <input
-                        type="text"
-                        value={art.titre}
-                        onChange={(e) => setArticlesPerso((prev) => prev.map((a, j) => j === i ? { ...a, titre: e.target.value } : a))}
-                        placeholder="Titre (ex. Mise en fourrière)"
-                        style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", marginBottom: 4 }}
-                      />
-                      <textarea
-                        rows={2}
-                        value={art.contenu}
-                        onChange={(e) => setArticlesPerso((prev) => prev.map((a, j) => j === i ? { ...a, contenu: e.target.value } : a))}
-                        placeholder="Contenu de l'article..."
-                        style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", resize: "vertical" }}
-                      />
+                {articlesPerso.length > 0 && (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                        <FileText size={11} color="#D9730D" /> Articles supplementaires
+                      </label>
+                      <button
+                        onClick={() => setArticlesPerso((prev) => [...prev, { id: `art_${Date.now()}`, titre: "", contenu: "" }])}
+                        style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, background: "none", border: "none", cursor: "pointer", color: "#1E3A5F", fontWeight: 600 }}
+                      >
+                        <Plus size={11} /> Ajouter
+                      </button>
                     </div>
-                  ))}
-                </div>
+                    {articlesPerso.map((art, i) => (
+                      <div key={art.id} style={{ background: "#FAFAF7", border: "1px solid #E4E1D6", borderRadius: 6, padding: "8px 10px", marginBottom: 6 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: "#D9730D" }}>ARTICLE</span>
+                          <button onClick={() => setArticlesPerso((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#A6A399" }}><X size={11} /></button>
+                        </div>
+                        <input
+                          type="text"
+                          value={art.titre}
+                          onChange={(e) => setArticlesPerso((prev) => prev.map((a, j) => j === i ? { ...a, titre: e.target.value } : a))}
+                          placeholder="Titre (ex. Responsabilité de l'organisateur)"
+                          style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", marginBottom: 4 }}
+                        />
+                        <textarea
+                          rows={2}
+                          value={art.contenu}
+                          onChange={(e) => setArticlesPerso((prev) => prev.map((a, j) => j === i ? { ...a, contenu: e.target.value } : a))}
+                          placeholder="Contenu de l'article..."
+                          style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", resize: "vertical" }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Clauses standards */}
                 <div>
@@ -699,6 +731,26 @@ export default function NouveauArretePage() {
                       </div>
                     </label>
                   </div>
+                </div>
+
+                {/* Bouton pour ajouter des éléments supplémentaires */}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {!perimetre && (
+                    <button
+                      onClick={() => setPerimetre("La zone réglementée est délimitée par ")}
+                      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 12, border: "1px dashed #D8D5C8", background: "transparent", cursor: "pointer", color: "#6B6A60", fontFamily: "'IBM Plex Sans', sans-serif" }}
+                    >
+                      + Perimetre
+                    </button>
+                  )}
+                  {articlesPerso.length === 0 && (
+                    <button
+                      onClick={() => setArticlesPerso([{ id: `art_${Date.now()}`, titre: "", contenu: "" }])}
+                      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 12, border: "1px dashed #D8D5C8", background: "transparent", cursor: "pointer", color: "#6B6A60", fontFamily: "'IBM Plex Sans', sans-serif" }}
+                    >
+                      + Article supplementaire
+                    </button>
+                  )}
                 </div>
               </div>
             )}
