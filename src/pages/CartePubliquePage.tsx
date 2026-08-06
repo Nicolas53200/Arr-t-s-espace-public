@@ -2,26 +2,120 @@ import { useState, useMemo, useCallback, useRef } from "react";
 import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { Globe, Filter, Rss, FileJson, ChevronDown, AlertTriangle, Search, X, MapPin } from "lucide-react";
-import { ARRETES_PUBLICS, COMMUNES, type ArretePublic } from "@/data/communes-publiques";
+import { getArretesPublics, getCollectivites } from "@/lib/registre";
+import { TYPES_IMPACT } from "@/data/types-impact";
 import type { Feature, Geometry, GeoJsonProperties, FeatureCollection } from "geojson";
 
-const IMPACT_COULEURS: Record<string, string> = {
-  circulation_interdite: "#B91C1C",
-  stationnement_interdit: "#D9730D",
-  deviation: "#7C3AED",
-  zone_reservee: "#0369A1",
-  passage_maintenu: "#2F6B4F",
-};
+// ──── Types ────
 
-const IMPACT_LABELS: Record<string, string> = {
-  circulation_interdite: "Circulation interdite",
-  stationnement_interdit: "Stationnement interdit",
-  deviation: "Deviation",
-  zone_reservee: "Zone reservee",
-  passage_maintenu: "Passage maintenu",
-};
+interface ArretePublicDyn {
+  id: string;
+  numero: string;
+  titre: string;
+  type_label: string;
+  type_code: string;
+  date_debut: string;
+  date_fin: string;
+  impact: string;
+  impact_label: string;
+  commune: string;
+  commune_id: string;
+  coordonnees: [number, number][];
+  geometrie_type: "LineString" | "Polygon";
+}
+
+interface CommuneDyn {
+  id: string;
+  nom: string;
+  code_postal: string;
+  centre: [number, number] | null;
+}
+
+// ──── Couleurs & labels ────
+
+const IMPACT_COULEURS: Record<string, string> = {};
+const IMPACT_LABELS: Record<string, string> = {};
+for (const t of TYPES_IMPACT) {
+  IMPACT_COULEURS[t.code] = t.couleur;
+  IMPACT_LABELS[t.code] = t.label;
+}
 
 const CENTRE_DEPARTEMENT: [number, number] = [47.7000, -3.0600];
+
+// ──── Convertir les arrêtés du registre en données cartographiques ────
+
+function convertirArretesPublics(): { arretes: ArretePublicDyn[]; communes: CommuneDyn[] } {
+  const arretesRaw = getArretesPublics();
+  const arretes: ArretePublicDyn[] = [];
+  const communesMap = new Map<string, CommuneDyn>();
+
+  for (const a of arretesRaw) {
+    // Chaque tronçon avec des coordonnées devient une entrée sur la carte
+    if (a.troncons && a.troncons.length > 0) {
+      for (const t of a.troncons) {
+        if (!t.coordonnees || t.coordonnees.length < 2) continue;
+        arretes.push({
+          id: `${a.id}_${t.voie_id}`,
+          numero: a.numero,
+          titre: a.titre,
+          type_label: a.type_label,
+          type_code: a.type_code,
+          date_debut: a.date_debut,
+          date_fin: a.date_fin,
+          impact: t.impact,
+          impact_label: IMPACT_LABELS[t.impact] ?? t.impact,
+          commune: a._commune_nom,
+          commune_id: a.commune_id,
+          coordonnees: t.coordonnees,
+          geometrie_type: t.geometrie_type ?? "LineString",
+        });
+      }
+    }
+
+    // Enregistrer la commune
+    if (!communesMap.has(a.commune_id)) {
+      // Calculer un centre approximatif à partir des tronçons
+      let centre: [number, number] | null = null;
+      const coords = a.troncons?.flatMap((t) => t.coordonnees ?? []) ?? [];
+      if (coords.length > 0) {
+        const sumLat = coords.reduce((s, c) => s + c[1], 0);
+        const sumLng = coords.reduce((s, c) => s + c[0], 0);
+        centre = [sumLat / coords.length, sumLng / coords.length];
+      }
+      communesMap.set(a.commune_id, {
+        id: a.commune_id,
+        nom: a._commune_nom,
+        code_postal: a._commune_code_postal,
+        centre,
+      });
+    } else if (!communesMap.get(a.commune_id)!.centre) {
+      // Mettre à jour le centre si on a des coordonnées maintenant
+      const coords = a.troncons?.flatMap((t) => t.coordonnees ?? []) ?? [];
+      if (coords.length > 0) {
+        const sumLat = coords.reduce((s, c) => s + c[1], 0);
+        const sumLng = coords.reduce((s, c) => s + c[0], 0);
+        communesMap.get(a.commune_id)!.centre = [sumLat / coords.length, sumLng / coords.length];
+      }
+    }
+  }
+
+  // Ajouter aussi les communes sans arrêtés publiés (pour les montrer comme participantes)
+  const collectivites = getCollectivites().filter((c) => c.active);
+  for (const c of collectivites) {
+    if (!communesMap.has(c.id)) {
+      communesMap.set(c.id, {
+        id: c.id,
+        nom: c.nom.replace(/^Ville de /i, ""),
+        code_postal: c.code_postal,
+        centre: null,
+      });
+    }
+  }
+
+  return { arretes, communes: Array.from(communesMap.values()) };
+}
+
+// ──── Composants carte ────
 
 function communeIcon(count: number) {
   return L.divIcon({
@@ -61,7 +155,7 @@ function SearchBar({ onSelect }: { onSelect: (lat: number, lng: number, label: s
   function doSearch(q: string) {
     if (q.length < 3) { setResults([]); setOpen(false); return; }
     setSearching(true);
-    const bounded = `${q}, Morbihan, France`;
+    const bounded = `${q}, France`;
     fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(bounded)}`)
       .then((r) => r.json())
       .then((data: SearchResult[]) => {
@@ -141,19 +235,29 @@ function SearchBar({ onSelect }: { onSelect: (lat: number, lng: number, label: s
   );
 }
 
+// ──── Page principale ────
+
 export default function CartePubliquePage() {
   const [communeFiltre, setCommuneFiltre] = useState<string | null>(null);
   const [impactFiltre, setImpactFiltre] = useState<string | null>(null);
   const [panneauOuvert, setPanneauOuvert] = useState(true);
   const [searchTarget, setSearchTarget] = useState<{ pos: [number, number]; label: string } | null>(null);
 
+  // Charger dynamiquement depuis le registre
+  const { arretes: tousArretes, communes } = useMemo(() => convertirArretesPublics(), []);
+
   const arretesFiltres = useMemo(() => {
-    return ARRETES_PUBLICS.filter((a) => {
+    return tousArretes.filter((a) => {
       if (communeFiltre && a.commune_id !== communeFiltre) return false;
       if (impactFiltre && a.impact !== impactFiltre) return false;
       return true;
     });
-  }, [communeFiltre, impactFiltre]);
+  }, [tousArretes, communeFiltre, impactFiltre]);
+
+  const communesAvecArretes = useMemo(
+    () => communes.filter((c) => c.centre !== null),
+    [communes],
+  );
 
   const featureCollection: FeatureCollection = useMemo(() => ({
     type: "FeatureCollection",
@@ -173,7 +277,7 @@ export default function CartePubliquePage() {
 
   const style = useCallback((feature: Feature<Geometry, GeoJsonProperties> | undefined) => {
     if (!feature) return {};
-    const props = feature.properties as ArretePublic;
+    const props = feature.properties as ArretePublicDyn;
     const couleur = IMPACT_COULEURS[props.impact] ?? "#6B6A60";
     const isPolygon = feature.geometry.type === "Polygon";
     return {
@@ -188,7 +292,7 @@ export default function CartePubliquePage() {
   }, []);
 
   const onEachFeature = useCallback((feature: Feature<Geometry, GeoJsonProperties>, layer: L.Layer) => {
-    const p = feature.properties as ArretePublic;
+    const p = feature.properties as ArretePublicDyn;
     const couleur = IMPACT_COULEURS[p.impact] ?? "#6B6A60";
     layer.bindPopup(`
       <div style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;max-width:240px;">
@@ -210,15 +314,15 @@ export default function CartePubliquePage() {
 
   const centre = useMemo(() => {
     if (communeFiltre) {
-      const c = COMMUNES.find((c) => c.id === communeFiltre);
+      const c = communesAvecArretes.find((c) => c.id === communeFiltre);
       return c?.centre ?? CENTRE_DEPARTEMENT;
     }
     return CENTRE_DEPARTEMENT;
-  }, [communeFiltre]);
+  }, [communeFiltre, communesAvecArretes]);
 
-  const zoom = communeFiltre
-    ? (communeFiltre === "tenant_lorient" ? 16 : 16)
-    : 11;
+  const zoom = communeFiltre ? 16 : 11;
+
+  const isEmpty = tousArretes.length === 0;
 
   return (
     <div style={{ minHeight: "100vh", background: "#F5F5F0", fontFamily: "'IBM Plex Sans', sans-serif" }}>
@@ -237,10 +341,10 @@ export default function CartePubliquePage() {
           <Globe size={20} />
           <div>
             <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
-              Carte des arretes — Morbihan
+              Carte des arretes — Inter-communes
             </h1>
             <p style={{ margin: 0, fontSize: 11, opacity: 0.7 }}>
-              Donnees ouvertes · Actes360
+              Donnees ouvertes · Actes360 · {tousArretes.length} arrete{tousArretes.length > 1 ? "s" : ""} publie{tousArretes.length > 1 ? "s" : ""}
             </p>
           </div>
         </div>
@@ -289,7 +393,7 @@ export default function CartePubliquePage() {
         }}>
           {panneauOuvert && (
             <>
-              {/* Filters */}
+              {/* Search */}
               <div style={{ padding: "16px 18px", borderBottom: "1px solid #F0EDE4" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
                   <Search size={14} color="#1E3A5F" />
@@ -318,6 +422,7 @@ export default function CartePubliquePage() {
                 )}
               </div>
 
+              {/* Filters */}
               <div style={{ padding: "16px 18px", borderBottom: "1px solid #F0EDE4" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
                   <Filter size={14} color="#1E3A5F" />
@@ -337,7 +442,7 @@ export default function CartePubliquePage() {
                   }}
                 >
                   <option value="">Toutes les communes</option>
-                  {COMMUNES.map((c) => (
+                  {communes.map((c) => (
                     <option key={c.id} value={c.id}>{c.nom} ({c.code_postal})</option>
                   ))}
                 </select>
@@ -363,44 +468,61 @@ export default function CartePubliquePage() {
               {/* Communes summary */}
               <div style={{ padding: "14px 18px", borderBottom: "1px solid #F0EDE4" }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: "#1C1F1B", margin: "0 0 8px" }}>
-                  Communes participantes
+                  Communes participantes ({communes.length})
                 </p>
-                {COMMUNES.map((c) => {
-                  const count = ARRETES_PUBLICS.filter((a) => a.commune_id === c.id).length;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setCommuneFiltre(communeFiltre === c.id ? null : c.id)}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        width: "100%", padding: "8px 10px", marginBottom: 4,
-                        background: communeFiltre === c.id ? "#EBF0F7" : "transparent",
-                        border: communeFiltre === c.id ? "1px solid #1E3A5F" : "1px solid #F0EDE4",
-                        borderRadius: 6, cursor: "pointer",
-                        fontFamily: "'IBM Plex Sans', sans-serif",
-                      }}
-                    >
-                      <div style={{ textAlign: "left" }}>
-                        <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: "#1C1F1B" }}>{c.nom}</p>
-                        <p style={{ margin: 0, fontSize: 10, color: "#6B6A60" }}>{c.departement}</p>
-                      </div>
-                      <span style={{
-                        background: "#1E3A5F", color: "#fff", borderRadius: 10,
-                        fontSize: 10, padding: "2px 8px",
-                        fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
-                      }}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
+                {communes.length === 0 ? (
+                  <p style={{ fontSize: 11, color: "#A6A399", margin: 0, fontStyle: "italic" }}>
+                    Aucune commune inscrite sur la plateforme.
+                  </p>
+                ) : (
+                  communes.map((c) => {
+                    const count = tousArretes.filter((a) => a.commune_id === c.id).length;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setCommuneFiltre(communeFiltre === c.id ? null : c.id)}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          width: "100%", padding: "8px 10px", marginBottom: 4,
+                          background: communeFiltre === c.id ? "#EBF0F7" : "transparent",
+                          border: communeFiltre === c.id ? "1px solid #1E3A5F" : "1px solid #F0EDE4",
+                          borderRadius: 6, cursor: "pointer",
+                          fontFamily: "'IBM Plex Sans', sans-serif",
+                        }}
+                      >
+                        <div style={{ textAlign: "left" }}>
+                          <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: "#1C1F1B" }}>{c.nom}</p>
+                          <p style={{ margin: 0, fontSize: 10, color: "#6B6A60" }}>{c.code_postal}</p>
+                        </div>
+                        <span style={{
+                          background: count > 0 ? "#1E3A5F" : "#D8D5C8",
+                          color: count > 0 ? "#fff" : "#6B6A60",
+                          borderRadius: 10,
+                          fontSize: 10, padding: "2px 8px",
+                          fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
+                        }}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
               </div>
 
               {/* Arretes list */}
               <div style={{ flex: 1, overflowY: "auto", padding: "10px 18px" }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: "#1C1F1B", margin: "0 0 8px" }}>
-                  {arretesFiltres.length} arrete{arretesFiltres.length > 1 ? "s" : ""} actif{arretesFiltres.length > 1 ? "s" : ""}
+                  {arretesFiltres.length} arrete{arretesFiltres.length > 1 ? "s" : ""} publie{arretesFiltres.length > 1 ? "s" : ""}
                 </p>
+                {isEmpty && (
+                  <div style={{ textAlign: "center", padding: "20px 10px" }}>
+                    <Globe size={24} color="#A6A399" style={{ marginBottom: 8, opacity: 0.5 }} />
+                    <p style={{ fontSize: 12, color: "#6B6A60", margin: "0 0 4px", fontWeight: 500 }}>Aucun arrêté publié</p>
+                    <p style={{ fontSize: 11, color: "#A6A399", margin: 0, lineHeight: 1.4 }}>
+                      Les arrêtés apparaissent ici automatiquement quand une commune les publie.
+                    </p>
+                  </div>
+                )}
                 {arretesFiltres.map((a) => {
                   const couleur = IMPACT_COULEURS[a.impact] ?? "#6B6A60";
                   return (
@@ -483,9 +605,9 @@ export default function CartePubliquePage() {
             />
 
             {/* Commune markers when zoomed out */}
-            {!communeFiltre && COMMUNES.map((c) => {
+            {!communeFiltre && communesAvecArretes.map((c) => {
               const count = arretesFiltres.filter((a) => a.commune_id === c.id).length;
-              if (count === 0) return null;
+              if (count === 0 || !c.centre) return null;
               return (
                 <Marker
                   key={c.id}
@@ -496,7 +618,7 @@ export default function CartePubliquePage() {
                   <Popup>
                     <div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 12 }}>
                       <strong>{c.nom}</strong>
-                      <br />{count} arrete{count > 1 ? "s" : ""} actif{count > 1 ? "s" : ""}
+                      <br />{count} arrete{count > 1 ? "s" : ""} publie{count > 1 ? "s" : ""}
                     </div>
                   </Popup>
                 </Marker>

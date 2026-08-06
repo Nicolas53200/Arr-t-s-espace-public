@@ -7,7 +7,7 @@
  *
  * Ce module remplace les données mock hardcodées.
  */
-import type { TenantInfo, User, Reference } from "@/types";
+import type { TenantInfo, User, Reference, Arrete } from "@/types";
 import { creerBasesLegalesNationales } from "@/data/bases-legales";
 
 // ──── Types internes ────
@@ -36,6 +36,7 @@ export interface CollectiviteRegistre {
 const CLE_COLLECTIVITES = "registre_collectivites";
 const CLE_UTILISATEURS = "registre_utilisateurs";
 const CLE_REFERENCES_PREFIX = "registre_refs_";
+const CLE_ARRETES_PREFIX = "registre_arretes_";
 
 // ──── Helpers ────
 
@@ -236,14 +237,46 @@ export function majReference(tenantId: string, refId: string, updates: Partial<R
   sauvegarderReferences(tenantId, maj);
 }
 
+// ──── Arrêtés par tenant ────
+
+/** Retourne les arrêtés d'un tenant. */
+export function getArretes(tenantId: string): Arrete[] {
+  return lire<Arrete[]>(`${CLE_ARRETES_PREFIX}${tenantId}`, []);
+}
+
+/** Sauvegarde les arrêtés d'un tenant. */
+export function sauvegarderArretes(tenantId: string, arretes: Arrete[]): void {
+  ecrire(`${CLE_ARRETES_PREFIX}${tenantId}`, arretes);
+}
+
+/** Retourne les arrêtés publiés de TOUTES les communes (pour la carte publique). */
+export function getArretesPublics(): (Arrete & { commune: string; commune_id: string; _commune_nom: string; _commune_code_postal: string })[] {
+  const collectivites = getCollectivites().filter((c) => c.active);
+  const resultats: (Arrete & { commune: string; commune_id: string; _commune_nom: string; _commune_code_postal: string })[] = [];
+  for (const c of collectivites) {
+    const arretes = getArretes(c.id);
+    for (const a of arretes) {
+      if (a.statut === "publie" || a.statut === "modifie") {
+        resultats.push({
+          ...a,
+          commune: c.nom.replace(/^Ville de /i, ""),
+          commune_id: c.id,
+          _commune_nom: c.nom.replace(/^Ville de /i, ""),
+          _commune_code_postal: c.code_postal,
+        });
+      }
+    }
+  }
+  return resultats;
+}
+
 // ──── Réinitialisation ────
 
 /** Efface toutes les données du registre (utile pour les tests). */
 export function reinitialiser(): void {
-  // Supprimer les clés de références par tenant
   const keys = Object.keys(localStorage);
   for (const key of keys) {
-    if (key.startsWith(CLE_REFERENCES_PREFIX)) {
+    if (key.startsWith(CLE_REFERENCES_PREFIX) || key.startsWith(CLE_ARRETES_PREFIX)) {
       localStorage.removeItem(key);
     }
   }
