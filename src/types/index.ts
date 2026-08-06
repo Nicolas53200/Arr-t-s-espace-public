@@ -7,6 +7,7 @@ export type {
   Phase,
   VersionArrete,
   AbrogationArrete,
+  ArticlePersonnalise,
   Commentaire,
   Arrete,
   Voie,

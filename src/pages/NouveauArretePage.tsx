@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, Check, Plus, X, Layers, Flag, Edit2, RefreshCw,
-  FileText, MapPin, Home, Map,
+  FileText, MapPin, Home, Map, Scale, Shield, AlertTriangle, ChevronDown,
 } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
@@ -17,7 +17,7 @@ import { getCommunes } from "@/lib/registre";
 import { genNum } from "@/lib/arrete";
 import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
 import CarteDessin from "@/components/carte/CarteDessin";
-import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact } from "@/types";
+import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact, ArticlePersonnalise } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { validerChamp } from "@/lib/validation";
 import type { RegleValidation } from "@/lib/validation";
@@ -93,6 +93,29 @@ export default function NouveauArretePage() {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const nextIdx = useMemo(() => arretes.length + 150, [arretes.length]);
   const phaseIdCounter = useRef(1);
+
+  /* ---- Contenu juridique (arrêté complexe) ---- */
+  const [sectionJuridiqueOuverte, setSectionJuridiqueOuverte] = useState(
+    () => !!(arreteExistant?.considerants?.length || arreteExistant?.derogations?.length || arreteExistant?.clause_fourriere || arreteExistant?.clause_recours || arreteExistant?.articles_personnalises?.length),
+  );
+  const [considerants, setConsiderants] = useState<string[]>(
+    () => arreteExistant?.considerants ?? [],
+  );
+  const [derogations, setDerogations] = useState<string[]>(
+    () => arreteExistant?.derogations ?? [],
+  );
+  const [articlesPerso, setArticlesPerso] = useState<ArticlePersonnalise[]>(
+    () => arreteExistant?.articles_personnalises ?? [],
+  );
+  const [clauseFourriere, setClauseFourriere] = useState(
+    () => arreteExistant?.clause_fourriere ?? false,
+  );
+  const [clauseRecours, setClauseRecours] = useState(
+    () => arreteExistant?.clause_recours ?? false,
+  );
+  const [perimetre, setPerimetre] = useState(
+    () => arreteExistant?.perimetre ?? "",
+  );
 
   /* ---- Validation state ---- */
   const [touchedEtape1, setTouchedEtape1] = useState<Record<string, boolean>>({});
@@ -178,6 +201,14 @@ export default function NouveauArretePage() {
     setTouchedPhases({});
     setVoiesDeclarees([]);
     setMotifModification("");
+    // Reset contenu juridique
+    setSectionJuridiqueOuverte(false);
+    setConsiderants([]);
+    setDerogations([]);
+    setArticlesPerso([]);
+    setClauseFourriere(false);
+    setClauseRecours(false);
+    setPerimetre("");
     setEtape(1);
   }
 
@@ -241,12 +272,22 @@ export default function NouveauArretePage() {
     const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.label || VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];
     const tronconsFlatMap = phases.flatMap((ph) => ph.troncons);
     const communeChoisie = COMMUNES.find((c) => c.id === communeId);
+    // Champs juridiques (arrêté complexe)
+    const donneesJuridiques = {
+      considerants: considerants.filter((c) => c.trim().length > 0),
+      derogations: derogations.filter((d) => d.trim().length > 0),
+      articles_personnalises: articlesPerso.filter((a) => a.titre.trim().length > 0 || a.contenu.trim().length > 0),
+      clause_fourriere: clauseFourriere,
+      clause_recours: clauseRecours,
+      perimetre: perimetre.trim() || undefined,
+    };
+
     if (arreteExistant) {
       const h = { version: (arreteExistant.versions.length) + 1, date: AUJOURD_HUI.toISOString().split("T")[0]!, auteur: "M. Lefèvre", motif: motifModification || "Modification", titre: arreteExistant.titre };
-      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "modifie", voies: tv, troncons: tronconsFlatMap, versions: [h, ...arreteExistant.versions], commune: communeChoisie?.nom ?? "", commune_id: communeId } });
+      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "modifie", voies: tv, troncons: tronconsFlatMap, versions: [h, ...arreteExistant.versions], commune: communeChoisie?.nom ?? "", commune_id: communeId, ...donneesJuridiques } });
       setDernierArrete({ numero: arreteExistant.numero, mode: "modifie", titre: titreArrete });
     } else {
-      const nouvel: Arrete = { id: `a${Date.now()}`, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: "M. Lefèvre", date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null };
+      const nouvel: Arrete = { id: `a${Date.now()}`, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: "M. Lefèvre", date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, ...donneesJuridiques };
       dispatch({ type: "ADD", arrete: nouvel });
       setDernierArrete({ numero: num, mode: "cree", titre: titreArrete || typeArrete!.label });
     }
@@ -476,6 +517,193 @@ export default function NouveauArretePage() {
               ))}
             </div>
           )}
+          {/* ─── Section contenu juridique (arrêté complexe) ─── */}
+          <div style={{ border: "1px solid #E4E1D6", borderRadius: 7, marginBottom: 14, overflow: "hidden" }}>
+            <button
+              onClick={() => setSectionJuridiqueOuverte((o) => !o)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                width: "100%", padding: "10px 14px", background: sectionJuridiqueOuverte ? "#F7F6F2" : "#FFFFFF",
+                border: "none", cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Scale size={13} color="#7C3AED" />
+                <span style={{ fontWeight: 600, fontSize: 12, color: "#1C1F1B" }}>Contenu juridique</span>
+                <span style={{ fontSize: 10, color: "#A6A399", fontWeight: 400 }}>
+                  (considerants, derogations, clauses)
+                </span>
+              </div>
+              <ChevronDown size={13} color="#6B6A60" style={{ transform: sectionJuridiqueOuverte ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+            </button>
+
+            {sectionJuridiqueOuverte && (
+              <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Considérants */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                      <FileText size={11} color="#1E3A5F" /> Considerants
+                    </label>
+                    <button
+                      onClick={() => setConsiderants((prev) => [...prev, ""])}
+                      style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, background: "none", border: "none", cursor: "pointer", color: "#1E3A5F", fontWeight: 600 }}
+                    >
+                      <Plus size={11} /> Ajouter
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 10, color: "#A6A399", margin: "0 0 6px" }}>
+                    Justifications specifiques de l'arrete (affluence, securite, acces secours…)
+                  </p>
+                  {considerants.length === 0 && (
+                    <p style={{ fontSize: 11, color: "#A6A399", textAlign: "center", padding: "8px 0", margin: 0, fontStyle: "italic" }}>
+                      Aucun considerant. Les considerants par defaut seront utilises dans le PDF.
+                    </p>
+                  )}
+                  {considerants.map((c, i) => (
+                    <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 10, color: "#7C3AED", fontWeight: 600, marginTop: 7, flexShrink: 0 }}>CONSIDÉRANT</span>
+                      <textarea
+                        rows={2}
+                        value={c}
+                        onChange={(e) => setConsiderants((prev) => prev.map((v, j) => j === i ? e.target.value : v))}
+                        placeholder="qu'en raison de l'organisation de..."
+                        style={{ flex: 1, fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", resize: "vertical" }}
+                      />
+                      <button onClick={() => setConsiderants((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#A6A399", marginTop: 5 }}><X size={11} /></button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Dérogations */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                      <Shield size={11} color="#2F6B4F" /> Derogations
+                    </label>
+                    <button
+                      onClick={() => setDerogations((prev) => [...prev, ""])}
+                      style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, background: "none", border: "none", cursor: "pointer", color: "#1E3A5F", fontWeight: 600 }}
+                    >
+                      <Plus size={11} /> Ajouter
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 10, color: "#A6A399", margin: "0 0 6px" }}>
+                    Exceptions aux restrictions (vehicules de secours, riverains, exposants…)
+                  </p>
+                  {derogations.length === 0 && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {[
+                        "Véhicules de secours et de sécurité",
+                        "Riverains sur présentation d'un justificatif",
+                        "Exposants munis d'un macaron officiel",
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => setDerogations((prev) => [...prev, suggestion])}
+                          style={{ fontSize: 10, padding: "3px 8px", borderRadius: 12, border: "1px dashed #D8D5C8", background: "transparent", cursor: "pointer", color: "#6B6A60", fontFamily: "'IBM Plex Sans', sans-serif" }}
+                        >
+                          + {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {derogations.map((d, i) => (
+                    <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "center" }}>
+                      <span style={{ fontSize: 10, color: "#2F6B4F", fontWeight: 600, flexShrink: 0 }}>•</span>
+                      <input
+                        type="text"
+                        value={d}
+                        onChange={(e) => setDerogations((prev) => prev.map((v, j) => j === i ? e.target.value : v))}
+                        placeholder="Véhicules de secours..."
+                        style={{ flex: 1, fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif" }}
+                      />
+                      <button onClick={() => setDerogations((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#A6A399" }}><X size={11} /></button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Périmètre */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                    <MapPin size={11} color="#0369A1" /> Perimetre de la manifestation
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={perimetre}
+                    onChange={(e) => setPerimetre(e.target.value)}
+                    placeholder="La zone réglementée concerne l'intégralité du centre-bourg, dont les limites sont matérialisées par..."
+                    style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", resize: "vertical" }}
+                  />
+                </div>
+
+                {/* Articles personnalisés */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                      <FileText size={11} color="#D9730D" /> Articles supplementaires
+                    </label>
+                    <button
+                      onClick={() => setArticlesPerso((prev) => [...prev, { id: `art_${Date.now()}`, titre: "", contenu: "" }])}
+                      style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, background: "none", border: "none", cursor: "pointer", color: "#1E3A5F", fontWeight: 600 }}
+                    >
+                      <Plus size={11} /> Ajouter
+                    </button>
+                  </div>
+                  {articlesPerso.map((art, i) => (
+                    <div key={art.id} style={{ background: "#FAFAF7", border: "1px solid #E4E1D6", borderRadius: 6, padding: "8px 10px", marginBottom: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: "#D9730D" }}>ARTICLE</span>
+                        <button onClick={() => setArticlesPerso((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#A6A399" }}><X size={11} /></button>
+                      </div>
+                      <input
+                        type="text"
+                        value={art.titre}
+                        onChange={(e) => setArticlesPerso((prev) => prev.map((a, j) => j === i ? { ...a, titre: e.target.value } : a))}
+                        placeholder="Titre (ex. Mise en fourrière)"
+                        style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", marginBottom: 4 }}
+                      />
+                      <textarea
+                        rows={2}
+                        value={art.contenu}
+                        onChange={(e) => setArticlesPerso((prev) => prev.map((a, j) => j === i ? { ...a, contenu: e.target.value } : a))}
+                        placeholder="Contenu de l'article..."
+                        style={{ width: "100%", fontSize: 11, padding: "5px 8px", borderRadius: 4, border: "1px solid #E4E1D6", fontFamily: "'IBM Plex Sans', sans-serif", resize: "vertical" }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Clauses standards */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+                    <AlertTriangle size={11} color="#B91C1C" /> Clauses standards
+                  </label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", padding: "6px 8px", borderRadius: 5, background: clauseFourriere ? "#FEF2F2" : "transparent", border: `1px solid ${clauseFourriere ? "#FECACA" : "#E4E1D6"}` }}>
+                      <input type="checkbox" checked={clauseFourriere} onChange={(e) => setClauseFourriere(e.target.checked)} style={{ width: 14, height: 14, marginTop: 1 }} />
+                      <div>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 500 }}>Mise en fourriere</p>
+                        <p style={{ margin: "2px 0 0", fontSize: 10, color: "#6B6A60" }}>
+                          Tout vehicule en infraction pourra etre enleve et mis en fourriere aux frais du proprietaire.
+                        </p>
+                      </div>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", padding: "6px 8px", borderRadius: 5, background: clauseRecours ? "#EFF6FF" : "transparent", border: `1px solid ${clauseRecours ? "#BFDBFE" : "#E4E1D6"}` }}>
+                      <input type="checkbox" checked={clauseRecours} onChange={(e) => setClauseRecours(e.target.checked)} style={{ width: 14, height: 14, marginTop: 1 }} />
+                      <div>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 500 }}>Recours contentieux</p>
+                        <p style={{ margin: "2px 0 0", fontSize: 10, color: "#6B6A60" }}>
+                          Le present arrete peut faire l'objet d'un recours devant le Tribunal Administratif dans un delai de deux mois.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button className="btn-ghost" onClick={() => arreteExistant ? navigate("/") : setEtape(0)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
             <button
@@ -567,6 +795,49 @@ export default function NouveauArretePage() {
               ))}
             </div>
           </div>
+          {/* Résumé contenu juridique */}
+          {(considerants.some((c) => c.trim()) || derogations.some((d) => d.trim()) || clauseFourriere || clauseRecours || perimetre.trim() || articlesPerso.some((a) => a.titre.trim())) && (
+            <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 14, marginBottom: 10 }}>
+              <p style={{ fontWeight: 600, fontSize: 12, margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
+                <Scale size={12} color="#7C3AED" /> Contenu juridique
+              </p>
+              {considerants.filter((c) => c.trim()).length > 0 && (
+                <div style={{ marginBottom: 6 }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, color: "#7C3AED", margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Considerants</p>
+                  {considerants.filter((c) => c.trim()).map((c, i) => (
+                    <p key={i} style={{ fontSize: 11, color: "#6B6A60", margin: "1px 0", paddingLeft: 8, borderLeft: "2px solid #E4E1D6" }}>
+                      {c.length > 80 ? c.slice(0, 80) + "…" : c}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {derogations.filter((d) => d.trim()).length > 0 && (
+                <div style={{ marginBottom: 6 }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, color: "#2F6B4F", margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Derogations</p>
+                  {derogations.filter((d) => d.trim()).map((d, i) => (
+                    <p key={i} style={{ fontSize: 11, color: "#6B6A60", margin: "1px 0", display: "flex", alignItems: "center", gap: 4 }}>
+                      <Shield size={9} color="#2F6B4F" /> {d}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {perimetre.trim() && (
+                <p style={{ fontSize: 11, color: "#6B6A60", margin: "0 0 4px" }}>
+                  <strong style={{ color: "#0369A1" }}>Périmètre :</strong> {perimetre.length > 80 ? perimetre.slice(0, 80) + "…" : perimetre}
+                </p>
+              )}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                {clauseFourriere && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: "#FEF2F2", color: "#B91C1C", fontWeight: 600 }}>Mise en fourriere</span>}
+                {clauseRecours && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: "#EFF6FF", color: "#1D4ED8", fontWeight: 600 }}>Recours contentieux</span>}
+                {articlesPerso.filter((a) => a.titre.trim()).length > 0 && (
+                  <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: "#FFF7ED", color: "#D9730D", fontWeight: 600 }}>
+                    +{articlesPerso.filter((a) => a.titre.trim()).length} article{articlesPerso.filter((a) => a.titre.trim()).length > 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           <div style={{ background: "#F4F2EC", borderRadius: 7, padding: "10px 14px", marginBottom: 16, fontSize: 11, color: "#6B6A60" }}>
             <p style={{ fontWeight: 600, margin: "0 0 4px", color: "#1C1F1B", fontSize: 12 }}>A la publication :</p>
             {[[FileText, arreteExistant ? "PDF mis a jour" : "PDF officiel genere"], [MapPin, `Carte mise a jour (${totalTroncons} troncon${totalTroncons > 1 ? "s" : ""})`], [Check, "Diffusion aux services"]].map(([Icon, txt]) => (
@@ -596,6 +867,12 @@ export default function NouveauArretePage() {
                   troncons: tronconsFlatMap,
                   versions: [],
                   arrete_abrogation: null,
+                  considerants: considerants.filter((c) => c.trim().length > 0),
+                  derogations: derogations.filter((d) => d.trim().length > 0),
+                  articles_personnalises: articlesPerso.filter((a) => a.titre.trim().length > 0 || a.contenu.trim().length > 0),
+                  clause_fourriere: clauseFourriere,
+                  clause_recours: clauseRecours,
+                  perimetre: perimetre.trim() || undefined,
                 };
                 ouvrirApercuPdf(apercu, references, tenant.nom, tenant.code_postal, tenant);
               }} style={{ fontSize: 12 }}><FileText size={12} />Apercu PDF</button>

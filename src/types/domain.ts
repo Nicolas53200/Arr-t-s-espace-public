@@ -66,6 +66,13 @@ export interface AbrogationArrete {
   motif: string;
 }
 
+/** Article personnalisé ajouté manuellement à l'arrêté */
+export interface ArticlePersonnalise {
+  id: string;
+  titre: string;
+  contenu: string;
+}
+
 export interface Arrete {
   id: string;
   numero: string;
@@ -86,6 +93,19 @@ export interface Arrete {
   commentaires?: Commentaire[];
   valideur?: string;
   date_validation?: string;
+  // ── Arrêté complexe ──
+  /** Considérants personnalisés (justifications spécifiques) */
+  considerants?: string[];
+  /** Dérogations (accès secours, riverains, exposants…) */
+  derogations?: string[];
+  /** Articles personnalisés ajoutés manuellement */
+  articles_personnalises?: ArticlePersonnalise[];
+  /** Inclure la clause de mise en fourrière */
+  clause_fourriere?: boolean;
+  /** Inclure la clause de recours contentieux */
+  clause_recours?: boolean;
+  /** Texte libre pour le périmètre de la manifestation */
+  perimetre?: string;
 }
 
 export interface Voie {
