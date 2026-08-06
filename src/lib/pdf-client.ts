@@ -104,6 +104,131 @@ function extraireNomCommune(nomTenant: string): string {
   return nomTenant.replace(/^Ville de /, "");
 }
 
+function buildConsiderantsHtml(arrete: Arrete): string {
+  const custom = arrete.considerants?.filter((c) => c.trim().length > 0) ?? [];
+  if (custom.length > 0) {
+    return custom
+      .map((c) => `<p class="considerant">CONSIDERANT ${escapeHtml(c)} ;</p>`)
+      .join("\n");
+  }
+  // Considérants par défaut
+  return `<p class="considerant">La necessite de reglementer la circulation et/ou le stationnement sur la voie publique ;</p>
+  <p class="considerant">Les imperatifs de securite et de commodite de passage ;</p>`;
+}
+
+function buildArticlesHtml(
+  arrete: Arrete,
+  voiesDetailHtml: string,
+  deviationHtml: string,
+  annexeHtml: string,
+  commune: string,
+): string {
+  let articleNum = 1;
+  let html = "";
+
+  // Article — Période d'application
+  html += `<div class="article">
+    <p class="article-titre">Article ${articleNum} — Periode d'application</p>
+    <p class="article-contenu">Du ${formatDateFr(arrete.date_debut)} au ${formatDateFr(arrete.date_fin)}.</p>
+  </div>\n`;
+  articleNum++;
+
+  // Article — Voies concernées
+  html += `<div class="article">
+    <p class="article-titre">Article ${articleNum} — Voies concernees</p>
+    <div class="article-contenu">
+      ${voiesDetailHtml}
+    </div>
+  </div>\n`;
+  articleNum++;
+
+  // Article — Déviation (si applicable)
+  const hasDeviation = arrete.troncons.some((t) => t.impact === "deviation");
+  if (hasDeviation) {
+    // Le deviationHtml contient déjà son propre titre, on remplace le numéro
+    html += deviationHtml.replace(
+      /Article \d+ —/,
+      `Article ${articleNum} —`,
+    ) + "\n";
+    articleNum++;
+  }
+
+  // Article — Dérogations (si renseignées)
+  const derogationsValides = arrete.derogations?.filter((d) => d.trim().length > 0) ?? [];
+  if (derogationsValides.length > 0) {
+    html += `<div class="article">
+    <p class="article-titre">Article ${articleNum} — Acces derogatoire</p>
+    <div class="article-contenu">
+      <p>Par derogation aux articles precedents, l'acces au perimetre reglemente reste autorise aux :</p>
+      <ul>
+        ${derogationsValides.map((d) => `<li>${escapeHtml(d)}</li>`).join("\n        ")}
+      </ul>
+      <p>sous reserve de circuler au pas et de ne presenter aucun danger pour les pietons.</p>
+    </div>
+  </div>\n`;
+    articleNum++;
+  }
+
+  // Article — Périmètre (si renseigné)
+  if (arrete.perimetre?.trim()) {
+    html += `<div class="article">
+    <p class="article-titre">Article ${articleNum} — Perimetre de la manifestation</p>
+    <p class="article-contenu">${escapeHtml(arrete.perimetre)}</p>
+  </div>\n`;
+    articleNum++;
+  }
+
+  // Articles personnalisés
+  const articlesPerso = arrete.articles_personnalises?.filter(
+    (a) => a.titre.trim().length > 0 || a.contenu.trim().length > 0,
+  ) ?? [];
+  for (const art of articlesPerso) {
+    const titre = art.titre.trim() || "Dispositions complementaires";
+    html += `<div class="article">
+    <p class="article-titre">Article ${articleNum} — ${escapeHtml(titre)}</p>
+    <p class="article-contenu">${escapeHtml(art.contenu)}</p>
+  </div>\n`;
+    articleNum++;
+  }
+
+  // Clause — Mise en fourrière
+  if (arrete.clause_fourriere) {
+    html += `<div class="article">
+    <p class="article-titre">Article ${articleNum} — Mise en fourriere</p>
+    <p class="article-contenu">Tout vehicule en infraction aux dispositions du present arrete sera considere comme genant. Il pourra etre procede a son enlevement immediat et a sa mise en fourriere, aux frais, risques et perils de son proprietaire, conformement aux dispositions du Code de la route.</p>
+  </div>\n`;
+    articleNum++;
+  }
+
+  // Article — Mesures de police (toujours présent)
+  html += `<div class="article">
+    <p class="article-titre">Article ${articleNum} — Mesures de police</p>
+    <p class="article-contenu">Les mesures de restriction de circulation et/ou de stationnement sont applicables conformement a la signalisation mise en place.</p>
+  </div>\n`;
+  articleNum++;
+
+  // Article — Exécution (toujours présent)
+  html += `<div class="article">
+    <p class="article-titre">Article ${articleNum} — Execution</p>
+    <p class="article-contenu">Les infractions au present arrete seront constatees par proces-verbaux et poursuivies conformement aux lois et reglements en vigueur. Le Directeur General des Services, les agents de la Police Municipale et la Gendarmerie Nationale sont charges, chacun en ce qui le concerne, de l'execution du present arrete.</p>
+  </div>\n`;
+  articleNum++;
+
+  // Clause — Recours contentieux
+  if (arrete.clause_recours) {
+    html += `<div class="article">
+    <p class="article-titre">Article ${articleNum} — Recours</p>
+    <p class="article-contenu">Le present arrete peut faire l'objet d'un recours contentieux devant le Tribunal Administratif de ${escapeHtml(commune)} dans un delai de deux mois a compter de sa publication et de sa transmission au representant de l'Etat.</p>
+  </div>\n`;
+    articleNum++;
+  }
+
+  // Annexe (plan de déviation)
+  html += annexeHtml;
+
+  return html;
+}
+
 export function ouvrirApercuPdf(
   arrete: Arrete,
   references: Reference[],
@@ -127,10 +252,8 @@ export function ouvrirApercuPdf(
     .join("\n");
 
   const voiesDetailHtml = buildArticleVoiesHtml(arrete.troncons, arrete.voies);
-  const hasDeviation = arrete.troncons.some((t) => t.impact === "deviation");
   const deviationHtml = buildArticleDeviationHtml(arrete.troncons, arrete.voies);
   const annexeHtml = buildAnnexeHtml(arrete.troncons);
-  const articleOffset = hasDeviation ? 1 : 0;
 
   const logoHtml = tenant?.logo
     ? `<img src="${tenant.logo}" alt="" class="logo-mairie" />`
@@ -403,36 +526,11 @@ export function ouvrirApercuPdf(
   }
 
   <p class="section-titre">CONSIDERANT :</p>
-  <p class="considerant">La necessite de reglementer la circulation et/ou le stationnement sur la voie publique ;</p>
-  <p class="considerant">Les imperatifs de securite et de commodite de passage ;</p>
+  ${buildConsiderantsHtml(arrete)}
 
   <div class="arrete-header">ARRETE</div>
 
-  <div class="article">
-    <p class="article-titre">Article 1 — Periode d'application</p>
-    <p class="article-contenu">Du ${formatDateFr(arrete.date_debut)} au ${formatDateFr(arrete.date_fin)}.</p>
-  </div>
-
-  <div class="article">
-    <p class="article-titre">Article 2 — Voies concernees</p>
-    <div class="article-contenu">
-      ${voiesDetailHtml}
-    </div>
-  </div>
-
-  ${deviationHtml}
-
-  <div class="article">
-    <p class="article-titre">Article ${3 + articleOffset} — Mesures de police</p>
-    <p class="article-contenu">Les mesures de restriction de circulation et/ou de stationnement sont applicables conformement a la signalisation mise en place.</p>
-  </div>
-
-  <div class="article">
-    <p class="article-titre">Article ${4 + articleOffset} — Execution</p>
-    <p class="article-contenu">Le present arrete sera notifie aux services de police municipale, aux services techniques et a toute personne interessee.</p>
-  </div>
-
-  ${annexeHtml}
+  ${buildArticlesHtml(arrete, voiesDetailHtml, deviationHtml, annexeHtml, commune)}
 
   <hr class="separator">
 

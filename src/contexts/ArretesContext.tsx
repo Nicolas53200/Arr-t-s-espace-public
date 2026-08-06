@@ -11,6 +11,11 @@ import {
 import type { Arrete, StatutArrete } from "@/types";
 import { estActif, estEnHistorique } from "@/lib/arrete";
 import { peutTransitionner } from "@/lib/workflow";
+import { useTenant } from "@/contexts/TenantContext";
+import {
+  getArretes as getArretesRegistre,
+  sauvegarderArretes,
+} from "@/lib/registre";
 import { ENV } from "@/config/env";
 import { ArretesService } from "@/services/arretes.service";
 
@@ -77,12 +82,28 @@ interface ArretesProviderProps {
 
 export function ArretesProvider({ children, useMock }: ArretesProviderProps) {
   const shouldUseMock = useMock ?? !ENV.USE_MOCK ? true : false;
+  const { tenant } = useTenant();
+  const tenantId = tenant.id;
+
   const [arretes, dispatch] = useReducer(
     arretesReducer,
-    [],
+    tenantId,
+    (tid) => getArretesRegistre(tid),
   );
   const [loading, setLoading] = useState(!shouldUseMock);
   const [error, setError] = useState<string | null>(null);
+
+  // Recharger quand le tenant change
+  useEffect(() => {
+    dispatch({ type: "SET_ALL", arretes: getArretesRegistre(tenantId) });
+  }, [tenantId]);
+
+  // Persister dans le registre à chaque modification
+  useEffect(() => {
+    if (tenantId && tenantId !== "aucun") {
+      sauvegarderArretes(tenantId, arretes);
+    }
+  }, [arretes, tenantId]);
 
   const chargerDepuisApi = useCallback(async () => {
     if (shouldUseMock) return;
