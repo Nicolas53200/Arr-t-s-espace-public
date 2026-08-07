@@ -188,14 +188,14 @@ function ModalAjoutCollectivite({ onCancel, onSave }: {
   function handleSave(e?: React.FormEvent) {
     if (e) e.preventDefault();
     setErreur("");
-    if (!form.nom.trim() || !form.code_postal.trim() || !form.siren.trim() || !form.email_admin.trim()) {
-      setErreur("Tous les champs sont obligatoires.");
+    if (!form.nom.trim() || !form.code_postal.trim() || !form.email_admin.trim()) {
+      setErreur("Le nom, le code postal et l'email sont obligatoires.");
       return;
     }
     onSave({
       nom: form.nom.trim(),
       code_postal: form.code_postal.trim(),
-      siren: form.siren.trim(),
+      siren: form.siren.trim() || "000000000",
       email_admin: form.email_admin.trim(),
     });
   }
@@ -228,8 +228,8 @@ function ModalAjoutCollectivite({ onCancel, onSave }: {
               <input type="text" value={form.code_postal} onChange={(e) => setForm((p) => ({ ...p, code_postal: e.target.value }))} placeholder="53000" required />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>SIREN</label>
-              <input type="text" value={form.siren} onChange={(e) => setForm((p) => ({ ...p, siren: e.target.value }))} placeholder="215600001" required />
+              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>SIREN <span style={{ color: "#A6A399", fontWeight: 400 }}>(facultatif)</span></label>
+              <input type="text" value={form.siren} onChange={(e) => setForm((p) => ({ ...p, siren: e.target.value }))} placeholder="215600001" />
             </div>
           </div>
           <div>
