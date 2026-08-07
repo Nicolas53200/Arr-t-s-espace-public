@@ -183,10 +183,21 @@ function ModalAjoutCollectivite({ onCancel, onSave }: {
   onSave: (data: { nom: string; code_postal: string; siren: string; email_admin: string }) => void;
 }) {
   const [form, setForm] = useState({ nom: "", code_postal: "", siren: "", email_admin: "" });
+  const [erreur, setErreur] = useState("");
 
-  function handleSave() {
-    if (!form.nom || !form.code_postal || !form.siren || !form.email_admin) return;
-    onSave(form);
+  function handleSave(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    setErreur("");
+    if (!form.nom.trim() || !form.code_postal.trim() || !form.siren.trim() || !form.email_admin.trim()) {
+      setErreur("Tous les champs sont obligatoires.");
+      return;
+    }
+    onSave({
+      nom: form.nom.trim(),
+      code_postal: form.code_postal.trim(),
+      siren: form.siren.trim(),
+      email_admin: form.email_admin.trim(),
+    });
   }
 
   return (
@@ -199,30 +210,37 @@ function ModalAjoutCollectivite({ onCancel, onSave }: {
         <p style={{ fontSize: 12, color: "#6B6A60", margin: "0 0 16px" }}>
           Un code d'acces unique sera genere automatiquement.
         </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+        {erreur && (
+          <p style={{ fontSize: 12, color: "#DC2626", background: "#FEF2F2", padding: "8px 10px", borderRadius: 6, margin: "0 0 12px" }}>
+            {erreur}
+          </p>
+        )}
+
+        <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Nom de la collectivite</label>
-            <input type="text" value={form.nom} onChange={(e) => setForm((p) => ({ ...p, nom: e.target.value }))} placeholder="Ville de..." />
+            <input type="text" value={form.nom} onChange={(e) => setForm((p) => ({ ...p, nom: e.target.value }))} placeholder="Ville de..." required />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Code postal</label>
-              <input type="text" value={form.code_postal} onChange={(e) => setForm((p) => ({ ...p, code_postal: e.target.value }))} placeholder="56000" />
+              <input type="text" value={form.code_postal} onChange={(e) => setForm((p) => ({ ...p, code_postal: e.target.value }))} placeholder="53000" required />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>SIREN</label>
-              <input type="text" value={form.siren} onChange={(e) => setForm((p) => ({ ...p, siren: e.target.value }))} placeholder="215600001" />
+              <input type="text" value={form.siren} onChange={(e) => setForm((p) => ({ ...p, siren: e.target.value }))} placeholder="215600001" required />
             </div>
           </div>
           <div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Email de l'administrateur</label>
-            <input type="email" value={form.email_admin} onChange={(e) => setForm((p) => ({ ...p, email_admin: e.target.value }))} placeholder="admin@commune.fr" />
+            <input type="email" value={form.email_admin} onChange={(e) => setForm((p) => ({ ...p, email_admin: e.target.value }))} placeholder="admin@commune.fr" required />
           </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
-          <button className="btn-secondary" onClick={onCancel} style={{ fontSize: 12 }}>Annuler</button>
-          <button className="btn-primary" onClick={handleSave} style={{ fontSize: 12 }}><Plus size={12} />Creer la collectivite</button>
-        </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+            <button type="button" className="btn-secondary" onClick={onCancel} style={{ fontSize: 12 }}>Annuler</button>
+            <button type="submit" className="btn-primary" style={{ fontSize: 12 }}><Plus size={12} />Creer la collectivite</button>
+          </div>
+        </form>
       </div>
     </div>
   );
