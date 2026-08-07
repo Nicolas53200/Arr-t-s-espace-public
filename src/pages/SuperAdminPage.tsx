@@ -1,10 +1,10 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Plus, Copy, Check, ArrowLeft, X, ToggleLeft, ToggleRight, Mail, Key, Lock } from "lucide-react";
+import { Building2, Plus, Copy, Check, ArrowLeft, X, ToggleLeft, ToggleRight, Mail, Key, Lock, MapPin } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   getCollectivites,
-  ajouterCollectivite as registreAjouter,
+  ajouterCollectiviteAvecGeo as registreAjouter,
   toggleCollectivite as registreToggle,
   type CollectiviteRegistre,
 } from "@/lib/registre";
@@ -36,8 +36,8 @@ export default function SuperAdminPage() {
     setTimeout(() => setCopie(null), 2000);
   }
 
-  function ajouterCollectivite(data: { nom: string; code_postal: string; siren: string; email_admin: string }) {
-    const nouvelle = registreAjouter(data);
+  async function ajouterCollectivite(data: { nom: string; code_postal: string; siren: string; email_admin: string }) {
+    const nouvelle = await registreAjouter(data);
     recharger();
     setModalAjout(false);
     setDetailId(nouvelle.id);
@@ -180,32 +180,40 @@ export default function SuperAdminPage() {
 
 function ModalAjoutCollectivite({ onCancel, onSave }: {
   onCancel: () => void;
-  onSave: (data: { nom: string; code_postal: string; siren: string; email_admin: string }) => void;
+  onSave: (data: { nom: string; code_postal: string; siren: string; email_admin: string }) => Promise<void> | void;
 }) {
   const [form, setForm] = useState({ nom: "", code_postal: "", siren: "", email_admin: "" });
   const [erreur, setErreur] = useState("");
+  const [chargement, setChargement] = useState(false);
 
-  function handleSave(e?: React.FormEvent) {
+  async function handleSave(e?: React.FormEvent) {
     if (e) e.preventDefault();
     setErreur("");
     if (!form.nom.trim() || !form.code_postal.trim() || !form.email_admin.trim()) {
       setErreur("Le nom, le code postal et l'email sont obligatoires.");
       return;
     }
-    onSave({
-      nom: form.nom.trim(),
-      code_postal: form.code_postal.trim(),
-      siren: form.siren.trim() || "000000000",
-      email_admin: form.email_admin.trim(),
-    });
+    setChargement(true);
+    try {
+      await onSave({
+        nom: form.nom.trim(),
+        code_postal: form.code_postal.trim(),
+        siren: form.siren.trim() || "000000000",
+        email_admin: form.email_admin.trim(),
+      });
+    } catch {
+      setErreur("Erreur lors de la creation. Reessayez.");
+    } finally {
+      setChargement(false);
+    }
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={onCancel}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={chargement ? undefined : onCancel}>
       <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 28, width: "100%", maxWidth: 460, boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h3 style={{ fontSize: 17, fontWeight: 700, color: "#1E3A5F", margin: 0 }}>Nouvelle collectivite</h3>
-          <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B6A60" }}><X size={16} /></button>
+          {!chargement && <button onClick={onCancel} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B6A60" }}><X size={16} /></button>}
         </div>
         <p style={{ fontSize: 12, color: "#6B6A60", margin: "0 0 16px" }}>
           Un code d'acces unique sera genere automatiquement.
@@ -220,25 +228,31 @@ function ModalAjoutCollectivite({ onCancel, onSave }: {
         <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Nom de la collectivite</label>
-            <input type="text" value={form.nom} onChange={(e) => setForm((p) => ({ ...p, nom: e.target.value }))} placeholder="Ville de..." required />
+            <input type="text" value={form.nom} onChange={(e) => setForm((p) => ({ ...p, nom: e.target.value }))} placeholder="Ville de..." required disabled={chargement} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Code postal</label>
-              <input type="text" value={form.code_postal} onChange={(e) => setForm((p) => ({ ...p, code_postal: e.target.value }))} placeholder="53000" required />
+              <input type="text" value={form.code_postal} onChange={(e) => setForm((p) => ({ ...p, code_postal: e.target.value }))} placeholder="53000" required disabled={chargement} />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>SIREN <span style={{ color: "#A6A399", fontWeight: 400 }}>(facultatif)</span></label>
-              <input type="text" value={form.siren} onChange={(e) => setForm((p) => ({ ...p, siren: e.target.value }))} placeholder="215600001" />
+              <input type="text" value={form.siren} onChange={(e) => setForm((p) => ({ ...p, siren: e.target.value }))} placeholder="215600001" disabled={chargement} />
             </div>
           </div>
           <div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Email de l'administrateur</label>
-            <input type="email" value={form.email_admin} onChange={(e) => setForm((p) => ({ ...p, email_admin: e.target.value }))} placeholder="admin@commune.fr" required />
+            <input type="email" value={form.email_admin} onChange={(e) => setForm((p) => ({ ...p, email_admin: e.target.value }))} placeholder="admin@commune.fr" required disabled={chargement} />
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-            <button type="button" className="btn-secondary" onClick={onCancel} style={{ fontSize: 12 }}>Annuler</button>
-            <button type="submit" className="btn-primary" style={{ fontSize: 12 }}><Plus size={12} />Creer la collectivite</button>
+            <button type="button" className="btn-secondary" onClick={onCancel} style={{ fontSize: 12 }} disabled={chargement}>Annuler</button>
+            <button type="submit" className="btn-primary" style={{ fontSize: 12 }} disabled={chargement}>
+              {chargement ? (
+                <><MapPin size={12} style={{ animation: "spin 1s linear infinite" }} />Geolocalisation en cours...</>
+              ) : (
+                <><Plus size={12} />Creer la collectivite</>
+              )}
+            </button>
           </div>
         </form>
       </div>

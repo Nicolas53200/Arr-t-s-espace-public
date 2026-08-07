@@ -34,4 +34,6 @@ export interface TenantInfo {
   devise?: string;
   nom_maire?: string;
   titre_maire?: string;
+  /** Coordonnées GPS du centre-ville [latitude, longitude] */
+  centre_geo?: [number, number];
 }

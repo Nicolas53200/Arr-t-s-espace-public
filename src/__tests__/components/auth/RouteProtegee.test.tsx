@@ -4,6 +4,7 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import RouteProtegee from "@/components/auth/RouteProtegee";
+import { ajouterCollectivite, reinitialiser } from "@/lib/registre";
 
 function renderProtected(initialPath: string, roles?: string[]) {
   return render(
@@ -16,6 +17,7 @@ function renderProtected(initialPath: string, roles?: string[]) {
               <Route path="/admin-only" element={<div>Admin only</div>} />
             </Route>
             <Route path="/login" element={<div>Page de connexion</div>} />
+            <Route path="/bienvenue" element={<div>Page de bienvenue</div>} />
           </Routes>
         </AuthProvider>
       </ToastProvider>
@@ -26,9 +28,17 @@ function renderProtected(initialPath: string, roles?: string[]) {
 describe("RouteProtegee", () => {
   beforeEach(() => {
     localStorage.clear();
+    reinitialiser();
   });
 
-  it("redirige vers /login si non authentifie", () => {
+  it("redirige vers /bienvenue si non authentifie et aucune collectivite", () => {
+    renderProtected("/protegee");
+    expect(screen.getByText("Page de bienvenue")).toBeDefined();
+  });
+
+  it("redirige vers /login si non authentifie mais une collectivite existe", () => {
+    ajouterCollectivite({ nom: "Ville Test", code_postal: "00000", siren: "000000000", email_admin: "test@test.fr" });
+    localStorage.setItem("acces_tenant", "tenant_test");
     renderProtected("/protegee");
     expect(screen.getByText("Page de connexion")).toBeDefined();
   });

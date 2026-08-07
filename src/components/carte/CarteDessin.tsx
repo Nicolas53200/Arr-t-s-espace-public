@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Polyline, Polygon, Marker, Popup, useMapEvents
 import L from "leaflet";
 import { Pencil, Pentagon, MousePointer, Trash2, Check, Search, X, MapPin, Undo2, Zap, AlertTriangle, ArrowRightLeft } from "lucide-react";
 import { TYPES_IMPACT } from "@/data/types-impact";
+import { rechercherRues, type ResultatGeocodage } from "@/lib/geocodage";
 import type { CodeImpact, Troncon } from "@/types";
 
 interface NominatimResult {
@@ -34,6 +35,10 @@ interface Props {
   centre?: [number, number];
   rueInitiale?: string;
   voiesInitiales?: { nom: string; impact: CodeImpact; touteRue: boolean; debut: string; fin: string }[];
+  /** Code postal de la commune pour scoper la recherche de rues */
+  communeCodePostal?: string;
+  /** Nom de la commune pour les recherches */
+  communeNom?: string;
 }
 
 const IMPACT_COULEURS: Record<string, string> = {};
@@ -330,31 +335,45 @@ async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][
   return null;
 }
 
-function SearchBarAuto({ onSelect, onAutoTrace }: {
+function SearchBarAuto({ onSelect, onAutoTrace, codePostal, communeNom }: {
   onSelect: (lat: number, lng: number) => void;
   onAutoTrace: (coords: [number, number][], label: string) => void;
+  codePostal?: string;
+  communeNom?: string;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<NominatimResult[]>([]);
+  const [resultatsAdresse, setResultatsAdresse] = useState<ResultatGeocodage[]>([]);
   const [searching, setSearching] = useState(false);
   const [open, setOpen] = useState(false);
   const [autoLoading, setAutoLoading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Utilise l'API adresse quand on a un code postal, sinon Nominatim
+  const useApiAdresse = !!codePostal;
+
   function doSearch(q: string) {
-    if (q.length < 3) { setResults([]); setOpen(false); return; }
+    if (q.length < 2) { setResults([]); setResultatsAdresse([]); setOpen(false); return; }
     setSearching(true);
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&polygon_geojson=1&q=${encodeURIComponent(q + ", France")}`)
-      .then((r) => r.json())
-      .then((data: NominatimResult[]) => { setResults(data); setOpen(data.length > 0); })
-      .catch(() => setResults([]))
-      .finally(() => setSearching(false));
+
+    if (useApiAdresse) {
+      rechercherRues(q, codePostal!, 6)
+        .then((data) => { setResultatsAdresse(data); setResults([]); setOpen(data.length > 0); })
+        .catch(() => setResultatsAdresse([]))
+        .finally(() => setSearching(false));
+    } else {
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&polygon_geojson=1&q=${encodeURIComponent(q + ", France")}`)
+        .then((r) => r.json())
+        .then((data: NominatimResult[]) => { setResults(data); setResultatsAdresse([]); setOpen(data.length > 0); })
+        .catch(() => setResults([]))
+        .finally(() => setSearching(false));
+    }
   }
 
   function handleChange(value: string) {
     setQuery(value);
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => doSearch(value), 400);
+    timerRef.current = setTimeout(() => doSearch(value), 300);
   }
 
   function pickCenter(r: NominatimResult) {
@@ -396,16 +415,60 @@ function SearchBarAuto({ onSelect, onAutoTrace }: {
       .finally(() => { setAutoLoading(false); setQuery(label); setOpen(false); });
   }
 
+  /** Sélection d'un résultat de l'API adresse → auto-trace via Nominatim pour le tracé géo */
+  function pickAdresseResult(r: ResultatGeocodage) {
+    const label = r.nom;
+    setAutoLoading(true);
+
+    // Centrer sur la rue
+    onSelect(r.lat, r.lng);
+
+    // Chercher le tracé via Nominatim (l'API adresse ne donne que le point central)
+    const searchQuery = `${r.nom}, ${r.commune}, France`;
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(searchQuery)}`)
+      .then((res) => res.json())
+      .then((data: NominatimResult[]) => {
+        if (data[0]?.geojson) {
+          const coords = extractLineCoords(data[0].geojson);
+          if (coords && coords.length >= 2) {
+            onAutoTrace(coords, label);
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => { setAutoLoading(false); setQuery(label); setOpen(false); });
+  }
+
+  const placeholder = communeNom
+    ? `Rechercher une rue a ${communeNom}...`
+    : "Rechercher une rue pour tracer automatiquement...";
+
   return (
     <div style={{ position: "relative", marginBottom: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#FAFAF7", border: "1px solid #E4E1D6", borderRadius: 6, padding: "6px 10px" }}>
         <Search size={13} color="#6B6A60" />
-        <input type="text" value={query} onChange={(e) => handleChange(e.target.value)} placeholder="Rechercher une rue pour tracer automatiquement..." style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 11, color: "#1C1F1B", fontFamily: "'IBM Plex Sans', sans-serif" }} />
-        {query && <button onClick={() => { setQuery(""); setResults([]); setOpen(false); }} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, display: "flex" }}><X size={11} color="#6B6A60" /></button>}
+        <input type="text" value={query} onChange={(e) => handleChange(e.target.value)} placeholder={placeholder} style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 11, color: "#1C1F1B", fontFamily: "'IBM Plex Sans', sans-serif" }} />
+        {query && <button onClick={() => { setQuery(""); setResults([]); setResultatsAdresse([]); setOpen(false); }} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, display: "flex" }}><X size={11} color="#6B6A60" /></button>}
         {(searching || autoLoading) && <span style={{ fontSize: 9, color: "#6B6A60" }}>...</span>}
       </div>
-      {open && results.length > 0 && (
+      {open && (resultatsAdresse.length > 0 || results.length > 0) && (
         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#fff", border: "1px solid #E4E1D6", borderTop: "none", borderRadius: "0 0 6px 6px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", maxHeight: 240, overflowY: "auto" }}>
+          {/* Résultats API adresse (scopés à la commune) */}
+          {resultatsAdresse.map((r, i) => (
+            <div key={`adr-${i}`} style={{ borderBottom: "1px solid #F0EDE4", padding: "8px 10px", cursor: "pointer" }} onClick={() => pickAdresseResult(r)}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <MapPin size={12} color="#2F6B4F" />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: "#1C1F1B" }}>{r.nom}</span>
+                  <span style={{ fontSize: 10, color: "#6B6A60", marginLeft: 6 }}>{r.commune}</span>
+                </div>
+                <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 3, background: "#D1FAE5", color: "#065F46", fontWeight: 600 }}>
+                  <Zap size={8} style={{ verticalAlign: "middle", marginRight: 2 }} />Tracer
+                </span>
+              </div>
+            </div>
+          ))}
+          {/* Résultats Nominatim (fallback) */}
           {results.map((r, i) => {
             const hasGeo = !!r.geojson && (r.geojson.type === "LineString" || r.geojson.type === "MultiLineString");
             return (
@@ -525,7 +588,7 @@ function AlertesPanel({ troncons }: { troncons: Troncon[] }) {
   );
 }
 
-export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact, onUpdateCoords, centre, rueInitiale, voiesInitiales }: Props) {
+export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact, onUpdateCoords, centre, rueInitiale, voiesInitiales, communeCodePostal, communeNom }: Props) {
   const [mode, setMode] = useState<DrawMode>("select");
   const [currentImpact, setCurrentImpact] = useState<CodeImpact>("circulation_interdite");
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
@@ -907,7 +970,7 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
 
       {/* Side panel */}
       <div>
-        <SearchBarAuto onSelect={handleSearch} onAutoTrace={handleAutoTrace} />
+        <SearchBarAuto onSelect={handleSearch} onAutoTrace={handleAutoTrace} codePostal={communeCodePostal} communeNom={communeNom} />
 
         {/* Impact selector for auto-trace */}
         <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 10 }}>
