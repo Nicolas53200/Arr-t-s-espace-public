@@ -787,6 +787,9 @@ export default function NouveauArretePage() {
             troncons={phaseActuelle.troncons}
             rueInitiale={(valeurs[champsAdresse?.id ?? ""] as string) || ""}
             voiesInitiales={voiesDeclarees.filter((v) => v.nom.length >= 3).map((v) => ({ nom: v.nom, impact: v.impact, touteRue: v.touteRue, debut: v.debut, fin: v.fin }))}
+            centre={tenant.centre_geo}
+            communeCodePostal={tenant.code_postal}
+            communeNom={tenant.nom.replace(/^Ville de /i, "")}
             onAdd={(t) => {
               setPhases((prev) => prev.map((ph, i) =>
                 i !== phaseActive ? ph : { ...ph, troncons: [...ph.troncons, t] }

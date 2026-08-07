@@ -9,6 +9,7 @@
  */
 import type { TenantInfo, User, Reference, Arrete } from "@/types";
 import { creerBasesLegalesNationales } from "@/data/bases-legales";
+import { geocoderCommune } from "@/lib/geocodage";
 
 // ──── Types internes ────
 
@@ -29,6 +30,8 @@ export interface CollectiviteRegistre {
   devise?: string;
   nom_maire?: string;
   titre_maire?: string;
+  /** Coordonnées GPS du centre-ville [latitude, longitude] */
+  centre_geo?: [number, number];
 }
 
 // ──── Clés localStorage ────
@@ -118,6 +121,36 @@ export function ajouterCollectivite(data: {
   return nouvelle;
 }
 
+/**
+ * Crée une collectivité ET géocode son centre-ville.
+ * Version async pour l'interface utilisateur (super-admin).
+ */
+export async function ajouterCollectiviteAvecGeo(data: {
+  nom: string;
+  code_postal: string;
+  siren: string;
+  email_admin: string;
+}): Promise<CollectiviteRegistre> {
+  const nouvelle = ajouterCollectivite(data);
+
+  // Géocoder le centre-ville en arrière-plan
+  try {
+    const centreGeo = await geocoderCommune(data.nom, data.code_postal);
+    if (centreGeo) {
+      const collectivites = getCollectivites();
+      const maj = collectivites.map((c) =>
+        c.id === nouvelle.id ? { ...c, centre_geo: centreGeo } : c,
+      );
+      sauvegarderCollectivites(maj);
+      nouvelle.centre_geo = centreGeo;
+    }
+  } catch {
+    // Le géocodage a échoué, ce n'est pas bloquant
+  }
+
+  return nouvelle;
+}
+
 export function toggleCollectivite(id: string): void {
   const collectivites = getCollectivites();
   const mise_a_jour = collectivites.map((c) =>
@@ -183,6 +216,7 @@ export function getTenants(): TenantInfo[] {
       devise: c.devise,
       nom_maire: c.nom_maire,
       titre_maire: c.titre_maire,
+      centre_geo: c.centre_geo,
     }));
 }
 
