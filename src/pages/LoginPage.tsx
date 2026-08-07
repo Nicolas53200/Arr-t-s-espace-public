@@ -1,6 +1,6 @@
 import { useState, useMemo, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
-import { Building2, Mail, Lock } from "lucide-react";
+import { Building2, Mail, Lock, Info } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { ROUTES } from "@/config/routes";
@@ -102,6 +102,29 @@ export default function LoginPage() {
             Arretes & Espace public
           </p>
         </div>
+
+        {/* Bandeau démo */}
+        {nomTenant !== "Collectivité" && (
+          <div
+            style={{
+              background: "#EFF6FF",
+              border: "1px solid #BFDBFE",
+              borderRadius: 8,
+              padding: "10px 12px",
+              marginBottom: 20,
+              display: "flex",
+              gap: 8,
+              alignItems: "flex-start",
+            }}
+          >
+            <Info size={14} color="#3B82F6" style={{ marginTop: 2, flexShrink: 0 }} />
+            <div style={{ fontSize: 11, color: "#1E40AF", lineHeight: 1.5 }}>
+              <strong>Mode démonstration</strong>
+              <br />
+              Mot de passe : <code style={{ background: "#DBEAFE", padding: "1px 4px", borderRadius: 3, fontSize: 11 }}>admin123</code>
+            </div>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit}>

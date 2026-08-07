@@ -2,6 +2,7 @@ import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { ROUTES } from "@/config/routes";
+import { getCollectivites } from "@/lib/registre";
 import type { Role } from "@/types";
 
 interface RouteProtegeeProps {
@@ -28,6 +29,12 @@ export default function RouteProtegee({ roles }: RouteProtegeeProps) {
   }
 
   if (!isAuthenticated) {
+    // Si aucune collectivité n'existe et aucun tenant sélectionné,
+    // diriger vers la page d'accueil plutôt que le login
+    const hasTenant = localStorage.getItem("acces_tenant");
+    if (!hasTenant && getCollectivites().length === 0) {
+      return <Navigate to="/bienvenue" replace />;
+    }
     return <Navigate to={ROUTES.login} replace />;
   }
 
