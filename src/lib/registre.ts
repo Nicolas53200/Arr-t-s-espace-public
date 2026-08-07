@@ -151,6 +151,26 @@ export async function ajouterCollectiviteAvecGeo(data: {
   return nouvelle;
 }
 
+export function supprimerCollectivite(id: string): void {
+  const collectivites = getCollectivites().filter((c) => c.id !== id);
+  sauvegarderCollectivites(collectivites);
+
+  // Supprimer les utilisateurs associés
+  const utilisateurs = getUtilisateurs().filter((u) => u.tenant_id !== id);
+  sauvegarderUtilisateurs(utilisateurs);
+
+  // Supprimer les références et arrêtés de ce tenant
+  localStorage.removeItem(`${CLE_REFERENCES_PREFIX}${id}`);
+  localStorage.removeItem(`${CLE_ARRETES_PREFIX}${id}`);
+
+  // Si ce tenant est celui sélectionné, nettoyer la session
+  if (localStorage.getItem("acces_tenant") === id) {
+    localStorage.removeItem("acces_tenant");
+    localStorage.removeItem("tenant_config");
+    localStorage.removeItem("arretes_auth_user");
+  }
+}
+
 export function toggleCollectivite(id: string): void {
   const collectivites = getCollectivites();
   const mise_a_jour = collectivites.map((c) =>
