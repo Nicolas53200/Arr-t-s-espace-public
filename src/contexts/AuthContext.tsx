@@ -55,11 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await new Promise((resolve) => setTimeout(resolve, 400));
     const found = authenticateUser(email, password);
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(found));
+    // Associer le tenant pour que TenantProvider le détecte au prochain chargement
+    localStorage.setItem("acces_tenant", found.tenant_id);
     setUser(found);
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem("acces_tenant");
+    localStorage.removeItem("tenant_config");
     setUser(null);
   }, []);
 

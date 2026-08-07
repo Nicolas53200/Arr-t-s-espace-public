@@ -32,6 +32,9 @@ export default function LoginPage() {
     setChargement(true);
     try {
       await login(email, password);
+      // Rechargement complet pour que TenantProvider se réinitialise avec le bon tenant
+      window.location.href = ROUTES.accueil;
+      return;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erreur de connexion";
       setErreur(message);
