@@ -1,11 +1,12 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Plus, Copy, Check, ArrowLeft, X, ToggleLeft, ToggleRight, Mail, Key, Lock, MapPin } from "lucide-react";
+import { Building2, Plus, Copy, Check, ArrowLeft, X, ToggleLeft, ToggleRight, Mail, Key, Lock, MapPin, Trash2 } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   getCollectivites,
   ajouterCollectiviteAvecGeo as registreAjouter,
   toggleCollectivite as registreToggle,
+  supprimerCollectivite as registreSupprimer,
   type CollectiviteRegistre,
 } from "@/lib/registre";
 
@@ -16,6 +17,7 @@ export default function SuperAdminPage() {
   const [modalAjout, setModalAjout] = useState(false);
   const [copie, setCopie] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [confirmSuppression, setConfirmSuppression] = useState<string | null>(null);
 
   const superadminAuth = localStorage.getItem("superadmin_auth");
   if (superadminAuth !== "true") {
@@ -27,6 +29,13 @@ export default function SuperAdminPage() {
 
   function toggleActive(id: string) {
     registreToggle(id);
+    recharger();
+  }
+
+  function supprimer(id: string) {
+    registreSupprimer(id);
+    setConfirmSuppression(null);
+    setDetailId(null);
     recharger();
   }
 
@@ -127,8 +136,13 @@ export default function SuperAdminPage() {
                   </span>
 
                   {/* Toggle */}
-                  <button onClick={() => toggleActive(c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
+                  <button onClick={() => toggleActive(c.id)} title={c.active ? "Suspendre" : "Activer"} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
                     {c.active ? <ToggleRight size={22} color="#065F46" /> : <ToggleLeft size={22} color="#A6A399" />}
+                  </button>
+
+                  {/* Supprimer */}
+                  <button onClick={() => setConfirmSuppression(c.id)} title="Supprimer" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", color: "#A6A399" }}>
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>
@@ -169,6 +183,41 @@ export default function SuperAdminPage() {
           ))}
         </div>
       </div>
+
+      {/* Modal confirmation suppression */}
+      {confirmSuppression && (() => {
+        const cible = collectivites.find((c) => c.id === confirmSuppression);
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setConfirmSuppression(null)}>
+            <div style={{ background: "#FFFFFF", borderRadius: 12, padding: 28, width: "100%", maxWidth: 400, boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Trash2 size={18} color="#DC2626" />
+                </div>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "#1C1F1B", margin: 0 }}>Supprimer la collectivite</h3>
+              </div>
+              <p style={{ fontSize: 13, color: "#6B6A60", margin: "0 0 8px", lineHeight: 1.6 }}>
+                Etes-vous sur de vouloir supprimer <strong style={{ color: "#1C1F1B" }}>{cible?.nom}</strong> ?
+              </p>
+              <p style={{ fontSize: 12, color: "#DC2626", margin: "0 0 20px", lineHeight: 1.5 }}>
+                Cette action est irreversible. Toutes les donnees (utilisateurs, arretes, references) seront definitivement supprimees.
+              </p>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button className="btn-secondary" onClick={() => setConfirmSuppression(null)} style={{ fontSize: 12 }}>Annuler</button>
+                <button onClick={() => supprimer(confirmSuppression)} style={{
+                  fontSize: 12, fontWeight: 600, fontFamily: "'IBM Plex Sans', sans-serif",
+                  padding: "8px 16px", borderRadius: 6, border: "none", cursor: "pointer",
+                  background: "#DC2626", color: "#FFFFFF",
+                }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Trash2 size={12} />Supprimer definitivement
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal ajout */}
       {modalAjout && (
