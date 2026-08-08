@@ -57,16 +57,14 @@ function extractLineCoords(geojson?: NominatimResult["geojson"]): [number, numbe
 /** Ajuste la vue de la carte pour contenir toutes les voies tracées */
 function FitBounds({ traces, centre }: { traces: VoieTrace[]; centre?: [number, number] }) {
   const map = useMap();
-  const fitted = useRef(false);
+  const prevCount = useRef(0);
 
   useEffect(() => {
-    if (traces.length === 0) {
-      if (centre && !fitted.current) {
-        map.setView(centre, 14);
-        fitted.current = true;
-      }
-      return;
-    }
+    // Ne re-centrer que quand de nouvelles traces apparaissent
+    if (traces.length === 0) return;
+    if (traces.length === prevCount.current) return;
+    prevCount.current = traces.length;
+
     const allCoords = traces.flatMap((t) => t.coords);
     if (allCoords.length >= 2) {
       const bounds = L.latLngBounds(allCoords.map(([lat, lng]) => [lat, lng] as L.LatLngTuple));
@@ -104,28 +102,25 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
   );
 
   useEffect(() => {
-    // Annuler les requêtes en cours pour les voies supprimées
-    const nomsActuels = new Set(voies.map((v) => v.nom));
-    for (const [nom, timer] of pendingRef.current) {
-      if (!nomsActuels.has(nom)) {
-        clearTimeout(timer);
-        pendingRef.current.delete(nom);
-      }
+    // À chaque changement, annuler TOUS les timers en cours et repartir à zéro
+    for (const timer of pendingRef.current.values()) {
+      clearTimeout(timer);
     }
+    pendingRef.current.clear();
 
     // Filtrer les voies avec un nom suffisamment long
     const voiesValides = voies.filter((v) => v.nom.trim().length >= 3);
 
-    // Reconstruire les traces depuis le cache + lancer les nouvelles requêtes
+    // Reconstruire les traces depuis le cache + identifier les voies à géocoder
     const nouvellesTraces: VoieTrace[] = [];
-    const aGeocoder: { nom: string; impact: CodeImpact; index: number }[] = [];
+    const aGeocoder: { nom: string; impact: CodeImpact }[] = [];
 
-    voiesValides.forEach((v, i) => {
+    voiesValides.forEach((v) => {
       const cached = cacheRef.current.get(v.nom);
       if (cached) {
         nouvellesTraces.push({ nom: v.nom, impact: v.impact, coords: cached });
       } else {
-        aGeocoder.push({ nom: v.nom, impact: v.impact, index: i });
+        aGeocoder.push({ nom: v.nom, impact: v.impact });
       }
     });
 
@@ -133,9 +128,6 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
 
     // Géocoder les nouvelles voies avec un délai pour éviter le rate-limiting
     aGeocoder.forEach(({ nom, impact }, queueIdx) => {
-      // Ne pas re-lancer si déjà en cours
-      if (pendingRef.current.has(nom)) return;
-
       const timer = setTimeout(() => {
         const query = communeNom ? `${nom}, ${communeNom}, France` : `${nom}, France`;
         fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(query)}`)
@@ -146,7 +138,6 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
             if (coords && coords.length >= 2) {
               cacheRef.current.set(nom, coords);
               setTraces((prev) => {
-                // Remplacer ou ajouter
                 const sans = prev.filter((t) => t.nom !== nom);
                 return [...sans, { nom, impact, coords }];
               });
@@ -162,10 +153,10 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
     });
 
     return () => {
-      // Cleanup au démontage
       for (const timer of pendingRef.current.values()) {
         clearTimeout(timer);
       }
+      pendingRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiesKey, communeNom]);
