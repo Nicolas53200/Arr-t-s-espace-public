@@ -29,7 +29,29 @@ export type CodeTypeArrete =
   | "marche"
   | "occupation_dp"
   | "demenagement"
+  | "nuisances_sonores"
+  | "zone_30"
   | "autre";
+
+/** Jours de la semaine pour la récurrence */
+export type JourSemaine = "lundi" | "mardi" | "mercredi" | "jeudi" | "vendredi" | "samedi" | "dimanche";
+
+/** Récurrence d'un arrêté permanent */
+export interface Recurrence {
+  /** Type de récurrence */
+  type: "permanent" | "hebdomadaire" | "mensuel" | "annuel";
+  /** Jours de la semaine concernés (pour hebdomadaire) */
+  jours?: JourSemaine[];
+  /** Heure de début (ex. "08:00") */
+  heure_debut?: string;
+  /** Heure de fin (ex. "20:00") */
+  heure_fin?: string;
+  /** Jour(s) du mois (pour mensuel, ex. [1, 15]) */
+  jours_mois?: number[];
+  /** Période annuelle: mois de début et fin (pour annuel, ex. "04" à "09") */
+  mois_debut?: string;
+  mois_fin?: string;
+}
 
 export type CategorieReference = "base_legale" | "delegation" | "circulation" | "stationnement";
 
@@ -107,6 +129,8 @@ export interface Arrete {
   clause_recours?: boolean;
   /** Texte libre pour le périmètre de la manifestation */
   perimetre?: string;
+  /** Récurrence pour les arrêtés permanents */
+  recurrence?: Recurrence;
 }
 
 export interface Voie {
