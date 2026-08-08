@@ -31,6 +31,9 @@ export type CodeTypeArrete =
   | "demenagement"
   | "nuisances_sonores"
   | "zone_30"
+  | "peril"
+  | "debit_boissons"
+  | "pietonnisation"
   | "autre";
 
 /** Jours de la semaine pour la récurrence */
