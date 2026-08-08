@@ -89,10 +89,51 @@ function InitView({ centre }: { centre: [number, number] }) {
   return null;
 }
 
-/** Appel unique à l'API Adresse */
+/**
+ * Normalise une chaîne pour comparaison : minuscules, sans accents,
+ * sans articles/prépositions courants.
+ */
+function normaliser(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Calcule la similarité entre deux chaînes (0 à 1).
+ * Compare les mots communs et la distance de préfixe.
+ */
+function similarite(a: string, b: string): number {
+  const na = normaliser(a);
+  const nb = normaliser(b);
+
+  // Correspondance exacte
+  if (na === nb) return 1;
+
+  // Mots communs
+  const motsA = na.split(" ").filter(Boolean);
+  const motsB = nb.split(" ").filter(Boolean);
+  const communs = motsA.filter((m) => motsB.some((mb) => mb.includes(m) || m.includes(mb)));
+  const scoreMots = communs.length / Math.max(motsA.length, 1);
+
+  // Le dernier mot (souvent le nom spécifique : "acacias", "archives") est critique
+  const dernierA = motsA[motsA.length - 1] ?? "";
+  const dernierB = motsB[motsB.length - 1] ?? "";
+  const dernierMatch = dernierA === dernierB ? 0.4
+    : dernierA.startsWith(dernierB) || dernierB.startsWith(dernierA) ? 0.2
+    : 0;
+
+  return scoreMots * 0.6 + dernierMatch;
+}
+
+/** Appel unique à l'API Adresse — renvoie le meilleur match par rapport à la requête */
 async function fetchAdresse(
   params: URLSearchParams,
   signal: AbortSignal,
+  query?: string,
 ): Promise<{ label: string; lat: number; lng: number } | null> {
   const resp = await fetch(
     `https://api-adresse.data.gouv.fr/search/?${params}`,
@@ -108,11 +149,25 @@ async function fetchAdresse(
 
   if (!features || features.length === 0) return null;
 
-  const f = features[0]!;
-  if (f.properties.score < 0.2) return null;
+  // Avec query, on re-trie les résultats par similarité textuelle
+  // pour éviter les faux-amis (acacias → archives, etc.)
+  let best = features[0]!;
+  if (query && features.length > 1) {
+    let bestSim = -1;
+    for (const f of features) {
+      if (f.properties.score < 0.15) continue;
+      const sim = similarite(query, f.properties.name) + f.properties.score * 0.3;
+      if (sim > bestSim) {
+        bestSim = sim;
+        best = f;
+      }
+    }
+  }
 
-  const [lng, lat] = f.geometry.coordinates;
-  return { label: f.properties.label, lat, lng };
+  if (best.properties.score < 0.15) return null;
+
+  const [lng, lat] = best.geometry.coordinates;
+  return { label: best.properties.label, lat, lng };
 }
 
 /**
@@ -129,16 +184,16 @@ async function geocoderRue(
   signal: AbortSignal,
 ): Promise<{ label: string; lat: number; lng: number } | null> {
   try {
-    // Stratégie 1 : type=street + code postal
+    // Stratégie 1 : type=street + code postal (rues classiques)
     if (codePostal) {
       const p1 = new URLSearchParams({
         q: nom,
         postcode: codePostal,
         type: "street",
-        limit: "1",
+        limit: "5",
         autocomplete: "1",
       });
-      const r1 = await fetchAdresse(p1, signal);
+      const r1 = await fetchAdresse(p1, signal, nom);
       if (r1) return r1;
     }
 
@@ -147,10 +202,10 @@ async function geocoderRue(
       const p2 = new URLSearchParams({
         q: nom,
         postcode: codePostal,
-        limit: "1",
+        limit: "5",
         autocomplete: "1",
       });
-      const r2 = await fetchAdresse(p2, signal);
+      const r2 = await fetchAdresse(p2, signal, nom);
       if (r2) return r2;
     }
 
@@ -158,10 +213,10 @@ async function geocoderRue(
     const q3 = communeNom ? `${nom}, ${communeNom}` : nom;
     const p3 = new URLSearchParams({
       q: q3,
-      limit: "1",
+      limit: "5",
       autocomplete: "1",
     });
-    return await fetchAdresse(p3, signal);
+    return await fetchAdresse(p3, signal, nom);
   } catch {
     return null;
   }
