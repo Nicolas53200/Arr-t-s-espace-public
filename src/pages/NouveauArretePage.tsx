@@ -17,6 +17,7 @@ import { getCommunes } from "@/lib/registre";
 import { genNum } from "@/lib/arrete";
 import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
 import CarteDessin from "@/components/carte/CarteDessin";
+import CarteApercu from "@/components/carte/CarteApercu";
 import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact, ArticlePersonnalise } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { validerChamp } from "@/lib/validation";
@@ -339,9 +340,10 @@ export default function NouveauArretePage() {
         </div>
       )}
 
-      {/* Etape 1 : formulaire */}
+      {/* Etape 1 : formulaire + aperçu carte */}
       {etape === 1 && typeArrete && !publie && (
-        <div style={{ maxWidth: 520 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 0 : 20, alignItems: "start" }}>
+        <div>
           <h2 className="fd" style={{ fontSize: 20, marginBottom: 14 }}>{arreteExistant ? "Modifier" : "Renseignements"}</h2>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Titre <span style={{ color: "#B91C1C" }}>*</span></label>
@@ -767,6 +769,27 @@ export default function NouveauArretePage() {
               Identifier les voies <ChevronRight size={13} />
             </button>
           </div>
+        </div>
+        {/* Colonne droite : aperçu carte */}
+        {!isMobile && (
+          <div style={{ position: "sticky", top: 20, height: "calc(100vh - 140px)", minHeight: 400 }}>
+            <CarteApercu
+              centre={tenant.centre_geo}
+              communeNom={tenant.nom.replace(/^Ville de /i, "")}
+              voies={voiesDeclarees.map((v) => ({ nom: v.nom, impact: v.impact }))}
+            />
+          </div>
+        )}
+        {/* Carte en dessous sur mobile */}
+        {isMobile && voiesDeclarees.some((v) => v.nom.trim().length >= 3) && (
+          <div style={{ marginTop: 16, height: 300 }}>
+            <CarteApercu
+              centre={tenant.centre_geo}
+              communeNom={tenant.nom.replace(/^Ville de /i, "")}
+              voies={voiesDeclarees.map((v) => ({ nom: v.nom, impact: v.impact }))}
+            />
+          </div>
+        )}
         </div>
       )}
 
