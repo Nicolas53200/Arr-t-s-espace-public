@@ -775,6 +775,7 @@ export default function NouveauArretePage() {
           <div style={{ position: "sticky", top: 20, height: "calc(100vh - 140px)", minHeight: 400 }}>
             <CarteApercu
               centre={tenant.centre_geo}
+              communeCodePostal={tenant.code_postal}
               communeNom={tenant.nom.replace(/^Ville de /i, "")}
               voies={voiesDeclarees.map((v) => ({ nom: v.nom, impact: v.impact }))}
             />
@@ -785,6 +786,7 @@ export default function NouveauArretePage() {
           <div style={{ marginTop: 16, height: 300 }}>
             <CarteApercu
               centre={tenant.centre_geo}
+              communeCodePostal={tenant.code_postal}
               communeNom={tenant.nom.replace(/^Ville de /i, "")}
               voies={voiesDeclarees.map((v) => ({ nom: v.nom, impact: v.impact }))}
             />
