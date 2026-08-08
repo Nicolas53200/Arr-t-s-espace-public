@@ -3,12 +3,15 @@
  *
  * Affiche les voies déclarées dans le formulaire en les géocodant
  * via Nominatim, sans outils de dessin ni toolbar.
+ *
+ * Debounce de 1,2 s après la dernière frappe pour éviter le
+ * rate-limiting de Nominatim (1 req/s max).
  */
 import { useEffect, useRef, useState, useMemo } from "react";
 import { MapContainer, TileLayer, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import { TYPES_IMPACT } from "@/data/types-impact";
-import { MapPin } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
 import type { CodeImpact } from "@/types";
 
 interface VoieTrace {
@@ -60,7 +63,6 @@ function FitBounds({ traces, centre }: { traces: VoieTrace[]; centre?: [number, 
   const prevCount = useRef(0);
 
   useEffect(() => {
-    // Ne re-centrer que quand de nouvelles traces apparaissent
     if (traces.length === 0) return;
     if (traces.length === prevCount.current) return;
     prevCount.current = traces.length;
@@ -90,73 +92,122 @@ function InitView({ centre }: { centre: [number, number] }) {
   return null;
 }
 
+/** Géocode une voie via Nominatim, une seule requête à la fois */
+async function geocoderVoie(
+  nom: string,
+  communeNom: string | undefined,
+  signal: AbortSignal,
+): Promise<[number, number][] | null> {
+  const query = communeNom ? `${nom}, ${communeNom}, France` : `${nom}, France`;
+  try {
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(query)}`,
+      { signal },
+    );
+    const data = (await resp.json()) as NominatimResult[];
+    if (!data[0]) return null;
+    return extractLineCoords(data[0].geojson);
+  } catch {
+    return null;
+  }
+}
+
 export default function CarteApercu({ centre, communeNom, voies }: Props) {
   const [traces, setTraces] = useState<VoieTrace[]>([]);
-  const pendingRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const [enChargement, setEnChargement] = useState(false);
   const cacheRef = useRef<Map<string, [number, number][]>>(new Map());
 
-  // Clé stable de la liste des voies pour détecter les changements
+  // Clé stable pour détecter un vrai changement de contenu
   const voiesKey = useMemo(
     () => voies.map((v) => `${v.nom}|${v.impact}`).join(";;"),
     [voies],
   );
 
   useEffect(() => {
-    // À chaque changement, annuler TOUS les timers en cours et repartir à zéro
-    for (const timer of pendingRef.current.values()) {
-      clearTimeout(timer);
-    }
-    pendingRef.current.clear();
-
-    // Filtrer les voies avec un nom suffisamment long
     const voiesValides = voies.filter((v) => v.nom.trim().length >= 3);
 
-    // Reconstruire les traces depuis le cache + identifier les voies à géocoder
-    const nouvellesTraces: VoieTrace[] = [];
+    // Afficher immédiatement les traces déjà en cache
+    const tracesCachees: VoieTrace[] = [];
     const aGeocoder: { nom: string; impact: CodeImpact }[] = [];
 
-    voiesValides.forEach((v) => {
+    for (const v of voiesValides) {
       const cached = cacheRef.current.get(v.nom);
       if (cached) {
-        nouvellesTraces.push({ nom: v.nom, impact: v.impact, coords: cached });
+        tracesCachees.push({ nom: v.nom, impact: v.impact, coords: cached });
       } else {
         aGeocoder.push({ nom: v.nom, impact: v.impact });
       }
-    });
+    }
 
-    setTraces(nouvellesTraces);
+    setTraces(tracesCachees);
 
-    // Géocoder les nouvelles voies avec un délai pour éviter le rate-limiting
-    aGeocoder.forEach(({ nom, impact }, queueIdx) => {
-      const timer = setTimeout(() => {
-        const query = communeNom ? `${nom}, ${communeNom}, France` : `${nom}, France`;
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(query)}`)
-          .then((r) => r.json())
-          .then((data: NominatimResult[]) => {
-            if (!data[0]) return;
-            const coords = extractLineCoords(data[0].geojson);
-            if (coords && coords.length >= 2) {
-              cacheRef.current.set(nom, coords);
-              setTraces((prev) => {
-                const sans = prev.filter((t) => t.nom !== nom);
-                return [...sans, { nom, impact, coords }];
+    // Rien à géocoder → pas de debounce
+    if (aGeocoder.length === 0) {
+      setEnChargement(false);
+      return;
+    }
+
+    // Debounce : attendre 1,2 s après la dernière frappe
+    setEnChargement(true);
+    const controller = new AbortController();
+
+    const debounceTimer = setTimeout(() => {
+      // Lancer les requêtes séquentiellement (1 par 1,2 s) pour Nominatim
+      let cancelled = false;
+
+      (async () => {
+        for (let i = 0; i < aGeocoder.length; i++) {
+          if (cancelled || controller.signal.aborted) return;
+
+          const { nom, impact } = aGeocoder[i]!;
+
+          // Vérifier le cache une dernière fois (un précédent effet l'a peut-être rempli)
+          const cached = cacheRef.current.get(nom);
+          if (cached) {
+            setTraces((prev) => {
+              const sans = prev.filter((t) => t.nom !== nom);
+              return [...sans, { nom, impact, coords: cached }];
+            });
+            continue;
+          }
+
+          const coords = await geocoderVoie(nom, communeNom, controller.signal);
+
+          if (cancelled || controller.signal.aborted) return;
+
+          if (coords && coords.length >= 2) {
+            cacheRef.current.set(nom, coords);
+            setTraces((prev) => {
+              const sans = prev.filter((t) => t.nom !== nom);
+              return [...sans, { nom, impact, coords }];
+            });
+          }
+
+          // Attendre 1,2 s entre chaque requête si d'autres suivent
+          if (i < aGeocoder.length - 1) {
+            await new Promise<void>((resolve) => {
+              const t = setTimeout(resolve, 1200);
+              controller.signal.addEventListener("abort", () => {
+                clearTimeout(t);
+                resolve();
               });
-            }
-          })
-          .catch(() => {})
-          .finally(() => {
-            pendingRef.current.delete(nom);
-          });
-      }, queueIdx * 1200);
+            });
+          }
+        }
 
-      pendingRef.current.set(nom, timer);
-    });
+        if (!cancelled) setEnChargement(false);
+      })();
+
+      // Cleanup interne
+      controller.signal.addEventListener("abort", () => {
+        cancelled = true;
+      });
+    }, 1200);
 
     return () => {
-      for (const timer of pendingRef.current.values()) {
-        clearTimeout(timer);
-      }
-      pendingRef.current.clear();
+      clearTimeout(debounceTimer);
+      controller.abort();
+      setEnChargement(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiesKey, communeNom]);
@@ -187,11 +238,19 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
           <MapPin size={12} color="#1E3A5F" />
           <span style={{ fontSize: 11, fontWeight: 600, color: "#1C1F1B" }}>Apercu carte</span>
         </div>
-        {traces.length > 0 && (
-          <span style={{ fontSize: 10, color: "#6B6A60" }}>
-            {traces.length} voie{traces.length > 1 ? "s" : ""} tracee{traces.length > 1 ? "s" : ""}
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {enChargement && (
+            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#6B6A60" }}>
+              <Loader2 size={10} style={{ animation: "spin 1s linear infinite" }} />
+              Recherche...
+            </span>
+          )}
+          {traces.length > 0 && (
+            <span style={{ fontSize: 10, color: "#6B6A60" }}>
+              {traces.length} voie{traces.length > 1 ? "s" : ""} tracee{traces.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Carte */}
@@ -220,7 +279,7 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
         </MapContainer>
 
         {/* Placeholder quand aucune voie */}
-        {voies.filter((v) => v.nom.trim().length >= 3).length === 0 && (
+        {voies.filter((v) => v.nom.trim().length >= 3).length === 0 && !enChargement && (
           <div style={{
             position: "absolute",
             bottom: 12,
