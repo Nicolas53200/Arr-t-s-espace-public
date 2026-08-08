@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, Shield, MapPin, Archive, Scale, CheckCircle2, AlertCircle, History, ChevronUp, ChevronDown, Clock, RefreshCw, X, Check, Download, Upload, FileText } from "lucide-react";
+import { Plus, Shield, MapPin, Archive, Scale, CheckCircle2, AlertCircle, History, ChevronUp, ChevronDown, Clock, RefreshCw, X, Check, Download, Upload, FileText, ExternalLink } from "lucide-react";
 import { useReferences } from "@/contexts/ReferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { AUJOURD_HUI } from "@/config/constants";
@@ -122,16 +122,46 @@ export default function ReferencesPage() {
         })}
       </div>
 
-      {/* Explications pour les bases légales */}
+      {/* Explications pour les bases légales + liens Légifrance */}
       {isBaseLegale && rpc("base_legale").length > 0 && (
-        <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 7, padding: "9px 13px", marginBottom: 14, display: "flex", gap: 8, alignItems: "flex-start" }}>
-          <Scale size={14} color="#7C3AED" style={{ marginTop: 1, flexShrink: 0 }} />
-          <div>
-            <p style={{ fontWeight: 600, fontSize: 12, margin: "0 0 3px", color: "#5B21B6" }}>Textes nationaux pré-chargés</p>
-            <p style={{ fontSize: 11, color: "#6D28D9", margin: 0 }}>
-              Ces articles de loi sont automatiquement cités en visa (« VU ») dans chaque arrêté municipal.
-              Ils constituent le fondement juridique commun du pouvoir de police du maire.
-            </p>
+        <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 7, padding: "12px 14px", marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10 }}>
+            <Scale size={14} color="#7C3AED" style={{ marginTop: 1, flexShrink: 0 }} />
+            <div>
+              <p style={{ fontWeight: 600, fontSize: 12, margin: "0 0 3px", color: "#5B21B6" }}>Textes nationaux pré-chargés</p>
+              <p style={{ fontSize: 11, color: "#6D28D9", margin: 0 }}>
+                Ces articles de loi sont automatiquement cités en visa (« VU ») dans chaque arrêté municipal.
+                Ils constituent le fondement juridique commun du pouvoir de police du maire.
+              </p>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, paddingLeft: 22 }}>
+            {[
+              { label: "CGCT L.2212-1", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006390199" },
+              { label: "CGCT L.2212-2", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006390202" },
+              { label: "CGCT L.2212-4", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006390209" },
+              { label: "CGCT L.2213-1", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006390308" },
+              { label: "Code route R.411-25", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006842097" },
+              { label: "Code route R.411-8", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006842050" },
+              { label: "Voirie L.116-1", url: "https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006070667/LEGISCTA000006159378" },
+              { label: "Sécurité L.211-1", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000025505075" },
+            ].map((t) => (
+              <a
+                key={t.label}
+                href={t.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  padding: "3px 8px", borderRadius: 4,
+                  background: "#FFFFFF", border: "1px solid #DDD6FE",
+                  textDecoration: "none", fontSize: 10, fontWeight: 500,
+                  color: "#5B21B6", fontFamily: "'IBM Plex Mono', monospace",
+                }}
+              >
+                {t.label} <ExternalLink size={8} />
+              </a>
+            ))}
           </div>
         </div>
       )}

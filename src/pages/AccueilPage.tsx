@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, CheckCircle2, Map, History, Archive, Shield, Clock, ChevronRight, Globe, ExternalLink } from "lucide-react";
+import { Plus, CheckCircle2, Map, History, Archive, Shield, Clock, ChevronRight, Globe, ExternalLink, Scale, BookOpen } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -133,6 +133,99 @@ export default function AccueilPage() {
             <Globe size={14} /> Flux GeoJSON / RSS <ExternalLink size={12} />
           </a>
         </div>
+      </div>
+
+      {/* Raccourcis textes nationaux */}
+      <div style={{
+        marginTop: 20,
+        padding: "20px 24px",
+        background: "#FFFFFF",
+        borderRadius: 10,
+        border: "1px solid #E4E1D6",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <Scale size={20} color="#1E3A5F" />
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#1C1F1B" }}>
+            Textes de référence nationaux
+          </h3>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
+          {/* CGCT */}
+          <div style={{ background: "#F8F7F3", borderRadius: 8, padding: "14px 16px", border: "1px solid #EDEAE0" }}>
+            <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "#1E3A5F", display: "flex", alignItems: "center", gap: 5 }}>
+              <BookOpen size={12} /> Code général des collectivités territoriales
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {[
+                { art: "L.2212-1", desc: "Pouvoir de police du maire", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006390199" },
+                { art: "L.2212-2", desc: "Sûreté, sécurité, salubrité publiques", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006390202" },
+                { art: "L.2212-4", desc: "Danger grave ou imminent", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006390209" },
+                { art: "L.2213-1", desc: "Police de la circulation", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006390308" },
+              ].map((t) => (
+                <a
+                  key={t.art}
+                  href={t.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                    padding: "7px 10px", borderRadius: 5, background: "#FFFFFF", border: "1px solid #E4E1D6",
+                    textDecoration: "none", fontSize: 11, color: "#1C1F1B",
+                    fontFamily: "'IBM Plex Sans', sans-serif",
+                    transition: "border-color 0.15s",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#1E3A5F"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#E4E1D6"; }}
+                >
+                  <span>
+                    <strong style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#1E3A5F" }}>Art. {t.art}</strong>
+                    <span style={{ color: "#6B6A60", marginLeft: 6 }}>{t.desc}</span>
+                  </span>
+                  <ExternalLink size={10} color="#A6A399" style={{ flexShrink: 0 }} />
+                </a>
+              ))}
+            </div>
+          </div>
+          {/* Autres codes */}
+          <div style={{ background: "#F8F7F3", borderRadius: 8, padding: "14px 16px", border: "1px solid #EDEAE0" }}>
+            <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "#1E3A5F", display: "flex", alignItems: "center", gap: 5 }}>
+              <BookOpen size={12} /> Autres textes fondamentaux
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {[
+                { art: "Code de la route — R.411-25", desc: "Réglementation sur les voies communales", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006842097" },
+                { art: "Code de la route — R.411-8", desc: "Arrêtés de police de la circulation", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006842050" },
+                { art: "Code de la voirie — L.116-1 à L.116-8", desc: "Coordination des travaux", url: "https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006070667/LEGISCTA000006159378" },
+                { art: "Code de la sécurité intérieure — L.211-1", desc: "Manifestations sur la voie publique", url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000025505075" },
+              ].map((t) => (
+                <a
+                  key={t.art}
+                  href={t.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                    padding: "7px 10px", borderRadius: 5, background: "#FFFFFF", border: "1px solid #E4E1D6",
+                    textDecoration: "none", fontSize: 11, color: "#1C1F1B",
+                    fontFamily: "'IBM Plex Sans', sans-serif",
+                    transition: "border-color 0.15s",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#1E3A5F"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#E4E1D6"; }}
+                >
+                  <span>
+                    <strong style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#1E3A5F" }}>{t.art}</strong>
+                    <span style={{ color: "#6B6A60", marginLeft: 6 }}>{t.desc}</span>
+                  </span>
+                  <ExternalLink size={10} color="#A6A399" style={{ flexShrink: 0 }} />
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+        <p style={{ margin: "12px 0 0", fontSize: 10, color: "#A6A399", textAlign: "center" }}>
+          Liens vers Légifrance — les textes consolidés en vigueur
+        </p>
       </div>
 
       {modalAction?.type === "abroger" && (
