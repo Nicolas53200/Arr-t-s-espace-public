@@ -1,29 +1,33 @@
 /**
  * CarteApercu — carte de prévisualisation en lecture seule.
  *
- * Affiche les voies déclarées dans le formulaire en les géocodant
- * via Nominatim, sans outils de dessin ni toolbar.
+ * Affiche les voies déclarées dans le formulaire en utilisant
+ * l'API Adresse (api-adresse.data.gouv.fr) — fiable, gratuite,
+ * sans rate-limiting.
  *
- * Debounce de 1,2 s après la dernière frappe pour éviter le
- * rate-limiting de Nominatim (1 req/s max).
+ * Debounce de 800ms après la dernière frappe.
  */
 import { useEffect, useRef, useState, useMemo } from "react";
-import { MapContainer, TileLayer, Polyline, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import { TYPES_IMPACT } from "@/data/types-impact";
 import { MapPin, Loader2 } from "lucide-react";
 import type { CodeImpact } from "@/types";
 
-interface VoieTrace {
+interface VoieLocalisee {
   nom: string;
+  label: string;
   impact: CodeImpact;
-  coords: [number, number][];
+  lat: number;
+  lng: number;
 }
 
 interface Props {
   /** Centre initial de la carte [lat, lng] */
   centre?: [number, number];
-  /** Nom de la commune pour scoper les recherches Nominatim */
+  /** Code postal de la commune pour scoper la recherche */
+  communeCodePostal?: string;
+  /** Nom de la commune */
   communeNom?: string;
   /** Voies déclarées dans le formulaire */
   voies: { nom: string; impact: CodeImpact }[];
@@ -36,50 +40,43 @@ function couleur(impact: string): string {
   return IMPACT_COULEURS[impact] ?? "#6B6A60";
 }
 
-interface NominatimResult {
-  display_name: string;
-  lat: string;
-  lon: string;
-  geojson?: {
-    type: string;
-    coordinates: number[] | number[][] | number[][][];
-  };
+function pinIcon(impactColor: string) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width: 24px; height: 24px; border-radius: 50% 50% 50% 0;
+      background: ${impactColor}; transform: rotate(-45deg);
+      border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+    "><div style="width: 8px; height: 8px; border-radius: 50%; background: #fff;"></div></div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -24],
+  });
 }
 
-function extractLineCoords(geojson?: NominatimResult["geojson"]): [number, number][] | null {
-  if (!geojson) return null;
-  if (geojson.type === "LineString") {
-    return (geojson.coordinates as number[][]).map(([lng, lat]) => [lat, lng] as [number, number]);
-  }
-  if (geojson.type === "MultiLineString") {
-    return (geojson.coordinates as number[][][]).flat().map(([lng, lat]) => [lat, lng] as [number, number]);
-  }
-  return null;
-}
-
-/** Ajuste la vue de la carte pour contenir toutes les voies tracées */
-function FitBounds({ traces, centre }: { traces: VoieTrace[]; centre?: [number, number] }) {
+/** Ajuste la vue pour contenir tous les marqueurs */
+function FitMarkers({ voies, centre }: { voies: VoieLocalisee[]; centre?: [number, number] }) {
   const map = useMap();
   const prevCount = useRef(0);
 
   useEffect(() => {
-    if (traces.length === 0) return;
-    if (traces.length === prevCount.current) return;
-    prevCount.current = traces.length;
+    if (voies.length === 0) return;
+    if (voies.length === prevCount.current) return;
+    prevCount.current = voies.length;
 
-    const allCoords = traces.flatMap((t) => t.coords);
-    if (allCoords.length >= 2) {
-      const bounds = L.latLngBounds(allCoords.map(([lat, lng]) => [lat, lng] as L.LatLngTuple));
-      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
-    } else if (allCoords.length === 1) {
-      map.setView(allCoords[0]!, 15);
+    if (voies.length === 1) {
+      map.setView([voies[0]!.lat, voies[0]!.lng], 16);
+    } else {
+      const bounds = L.latLngBounds(voies.map((v) => [v.lat, v.lng] as L.LatLngTuple));
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
     }
-  }, [traces, centre, map]);
+  }, [voies, centre, map]);
 
   return null;
 }
 
-/** Centre la carte sur le centre de la commune au montage */
+/** Centre la carte au montage */
 function InitView({ centre }: { centre: [number, number] }) {
   const map = useMap();
   const done = useRef(false);
@@ -92,30 +89,52 @@ function InitView({ centre }: { centre: [number, number] }) {
   return null;
 }
 
-/** Géocode une voie via Nominatim, une seule requête à la fois */
-async function geocoderVoie(
+/** Géocode une rue via l'API Adresse (gouvernement français) */
+async function geocoderRue(
   nom: string,
-  communeNom: string | undefined,
+  codePostal: string | undefined,
   signal: AbortSignal,
-): Promise<[number, number][] | null> {
-  const query = communeNom ? `${nom}, ${communeNom}, France` : `${nom}, France`;
+): Promise<{ label: string; lat: number; lng: number } | null> {
   try {
+    const params = new URLSearchParams({
+      q: nom,
+      limit: "1",
+      autocomplete: "1",
+    });
+    if (codePostal) {
+      params.set("postcode", codePostal);
+      params.set("type", "street");
+    }
+
     const resp = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(query)}`,
+      `https://api-adresse.data.gouv.fr/search/?${params}`,
       { signal },
     );
-    const data = (await resp.json()) as NominatimResult[];
-    if (!data[0]) return null;
-    return extractLineCoords(data[0].geojson);
+    if (!resp.ok) return null;
+
+    const data = await resp.json();
+    const features = data.features as Array<{
+      properties: { label: string; name: string; score: number };
+      geometry: { coordinates: [number, number] };
+    }>;
+
+    if (!features || features.length === 0) return null;
+
+    const f = features[0]!;
+    // Vérifier un score minimum de pertinence
+    if (f.properties.score < 0.3) return null;
+
+    const [lng, lat] = f.geometry.coordinates;
+    return { label: f.properties.label, lat, lng };
   } catch {
     return null;
   }
 }
 
-export default function CarteApercu({ centre, communeNom, voies }: Props) {
-  const [traces, setTraces] = useState<VoieTrace[]>([]);
+export default function CarteApercu({ centre, communeCodePostal, communeNom, voies }: Props) {
+  const [localisees, setLocalisees] = useState<VoieLocalisee[]>([]);
   const [enChargement, setEnChargement] = useState(false);
-  const cacheRef = useRef<Map<string, [number, number][]>>(new Map());
+  const cacheRef = useRef<Map<string, { label: string; lat: number; lng: number }>>(new Map());
 
   // Clé stable pour détecter un vrai changement de contenu
   const voiesKey = useMemo(
@@ -126,91 +145,65 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
   useEffect(() => {
     const voiesValides = voies.filter((v) => v.nom.trim().length >= 3);
 
-    // Afficher immédiatement les traces déjà en cache
-    const tracesCachees: VoieTrace[] = [];
+    // Afficher immédiatement les résultats en cache
+    const fromCache: VoieLocalisee[] = [];
     const aGeocoder: { nom: string; impact: CodeImpact }[] = [];
 
     for (const v of voiesValides) {
       const cached = cacheRef.current.get(v.nom);
       if (cached) {
-        tracesCachees.push({ nom: v.nom, impact: v.impact, coords: cached });
+        fromCache.push({ nom: v.nom, label: cached.label, impact: v.impact, lat: cached.lat, lng: cached.lng });
       } else {
         aGeocoder.push({ nom: v.nom, impact: v.impact });
       }
     }
 
-    setTraces(tracesCachees);
+    setLocalisees(fromCache);
 
-    // Rien à géocoder → pas de debounce
     if (aGeocoder.length === 0) {
       setEnChargement(false);
       return;
     }
 
-    // Debounce : attendre 1,2 s après la dernière frappe
+    // Debounce : attendre 800ms après la dernière frappe
     setEnChargement(true);
     const controller = new AbortController();
 
-    const debounceTimer = setTimeout(() => {
-      // Lancer les requêtes séquentiellement (1 par 1,2 s) pour Nominatim
-      let cancelled = false;
+    const debounceTimer = setTimeout(async () => {
+      for (const { nom, impact } of aGeocoder) {
+        if (controller.signal.aborted) break;
 
-      (async () => {
-        for (let i = 0; i < aGeocoder.length; i++) {
-          if (cancelled || controller.signal.aborted) return;
-
-          const { nom, impact } = aGeocoder[i]!;
-
-          // Vérifier le cache une dernière fois (un précédent effet l'a peut-être rempli)
-          const cached = cacheRef.current.get(nom);
-          if (cached) {
-            setTraces((prev) => {
-              const sans = prev.filter((t) => t.nom !== nom);
-              return [...sans, { nom, impact, coords: cached }];
-            });
-            continue;
-          }
-
-          const coords = await geocoderVoie(nom, communeNom, controller.signal);
-
-          if (cancelled || controller.signal.aborted) return;
-
-          if (coords && coords.length >= 2) {
-            cacheRef.current.set(nom, coords);
-            setTraces((prev) => {
-              const sans = prev.filter((t) => t.nom !== nom);
-              return [...sans, { nom, impact, coords }];
-            });
-          }
-
-          // Attendre 1,2 s entre chaque requête si d'autres suivent
-          if (i < aGeocoder.length - 1) {
-            await new Promise<void>((resolve) => {
-              const t = setTimeout(resolve, 1200);
-              controller.signal.addEventListener("abort", () => {
-                clearTimeout(t);
-                resolve();
-              });
-            });
-          }
+        // Vérifier le cache une dernière fois
+        const cached = cacheRef.current.get(nom);
+        if (cached) {
+          setLocalisees((prev) => {
+            if (prev.some((v) => v.nom === nom)) return prev;
+            return [...prev, { nom, label: cached.label, impact, lat: cached.lat, lng: cached.lng }];
+          });
+          continue;
         }
 
-        if (!cancelled) setEnChargement(false);
-      })();
+        const result = await geocoderRue(nom, communeCodePostal, controller.signal);
+        if (controller.signal.aborted) break;
 
-      // Cleanup interne
-      controller.signal.addEventListener("abort", () => {
-        cancelled = true;
-      });
-    }, 1200);
+        if (result) {
+          cacheRef.current.set(nom, result);
+          setLocalisees((prev) => {
+            const sans = prev.filter((v) => v.nom !== nom);
+            return [...sans, { nom, label: result.label, impact, lat: result.lat, lng: result.lng }];
+          });
+        }
+      }
+
+      if (!controller.signal.aborted) setEnChargement(false);
+    }, 800);
 
     return () => {
       clearTimeout(debounceTimer);
       controller.abort();
-      setEnChargement(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiesKey, communeNom]);
+  }, [voiesKey, communeCodePostal]);
 
   const defaultCenter: [number, number] = centre ?? [48.07, -0.77];
 
@@ -236,7 +229,9 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <MapPin size={12} color="#1E3A5F" />
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#1C1F1B" }}>Apercu carte</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#1C1F1B" }}>
+            Apercu carte{communeNom ? ` — ${communeNom}` : ""}
+          </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {enChargement && (
@@ -245,9 +240,9 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
               Recherche...
             </span>
           )}
-          {traces.length > 0 && (
+          {localisees.length > 0 && (
             <span style={{ fontSize: 10, color: "#6B6A60" }}>
-              {traces.length} voie{traces.length > 1 ? "s" : ""} tracee{traces.length > 1 ? "s" : ""}
+              {localisees.length} voie{localisees.length > 1 ? "s" : ""} localisee{localisees.length > 1 ? "s" : ""}
             </span>
           )}
         </div>
@@ -264,15 +259,46 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
         >
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           {centre && <InitView centre={centre} />}
-          <FitBounds traces={traces} centre={centre} />
-          {traces.map((t, i) => (
-            <Polyline
-              key={`${t.nom}_${i}`}
-              positions={t.coords}
+          <FitMarkers voies={localisees} centre={centre} />
+
+          {localisees.map((v, i) => (
+            <Marker
+              key={`${v.nom}_${i}`}
+              position={[v.lat, v.lng]}
+              icon={pinIcon(couleur(v.impact))}
+            >
+              <Popup>
+                <div style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12 }}>
+                  <strong>{v.nom}</strong>
+                  <br />
+                  <span style={{ fontSize: 11, color: "#6B6A60" }}>{v.label}</span>
+                  <br />
+                  <span style={{
+                    display: "inline-block", marginTop: 4,
+                    fontSize: 10, fontWeight: 600, padding: "2px 6px",
+                    borderRadius: 10, background: couleur(v.impact) + "22",
+                    color: couleur(v.impact),
+                  }}>
+                    {TYPES_IMPACT.find((t) => t.code === v.impact)?.label ?? v.impact}
+                  </span>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+
+          {/* Cercle de zone d'impact autour de chaque voie */}
+          {localisees.map((v, i) => (
+            <Circle
+              key={`zone_${v.nom}_${i}`}
+              center={[v.lat, v.lng]}
+              radius={80}
               pathOptions={{
-                color: couleur(t.impact),
-                weight: 5,
-                opacity: 0.85,
+                color: couleur(v.impact),
+                fillColor: couleur(v.impact),
+                fillOpacity: 0.12,
+                weight: 2,
+                opacity: 0.5,
+                dashArray: "5 5",
               }}
             />
           ))}
@@ -298,7 +324,7 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
         )}
 
         {/* Légende */}
-        {traces.length > 0 && (
+        {localisees.length > 0 && (
           <div style={{
             position: "absolute",
             bottom: 8,
@@ -308,13 +334,20 @@ export default function CarteApercu({ centre, communeNom, voies }: Props) {
             padding: "6px 10px",
             backdropFilter: "blur(4px)",
             zIndex: 400,
+            maxWidth: "70%",
           }}>
-            {traces.map((t, i) => (
-              <div key={`leg_${i}`} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: i < traces.length - 1 ? 3 : 0 }}>
-                <div style={{ width: 16, height: 3, borderRadius: 2, background: couleur(t.impact), flexShrink: 0 }} />
-                <span style={{ fontSize: 10, color: "#1C1F1B" }}>{t.nom}</span>
-              </div>
-            ))}
+            {localisees.map((v, i) => {
+              const ti = TYPES_IMPACT.find((t) => t.code === v.impact);
+              return (
+                <div key={`leg_${i}`} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: i < localisees.length - 1 ? 3 : 0 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: couleur(v.impact), flexShrink: 0, border: "1px solid #fff", boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }} />
+                  <span style={{ fontSize: 10, color: "#1C1F1B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {v.nom}
+                    {ti && <span style={{ color: "#6B6A60" }}> · {ti.label}</span>}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
