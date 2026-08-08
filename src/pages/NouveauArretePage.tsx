@@ -203,14 +203,26 @@ export default function NouveauArretePage() {
     setTouchedPhases({});
     setVoiesDeclarees([]);
     setMotifModification("");
-    // Reset contenu juridique
-    setSectionJuridiqueOuverte(false);
-    setConsiderants([]);
-    setDerogations([]);
-    setArticlesPerso([]);
-    setClauseFourriere(false);
-    setClauseRecours(false);
-    setPerimetre("");
+    // Pour le type "Autre", ouvrir la section juridique avec un premier article pré-ajouté
+    if (t.code === "autre") {
+      setSectionJuridiqueOuverte(true);
+      setConsiderants([]);
+      setDerogations([]);
+      setArticlesPerso([
+        { id: `art_${Date.now()}`, titre: "", contenu: "" },
+      ]);
+      setClauseFourriere(false);
+      setClauseRecours(true);
+      setPerimetre("");
+    } else {
+      setSectionJuridiqueOuverte(false);
+      setConsiderants([]);
+      setDerogations([]);
+      setArticlesPerso([]);
+      setClauseFourriere(false);
+      setClauseRecours(false);
+      setPerimetre("");
+    }
     setEtape(1);
   }
 
@@ -327,10 +339,15 @@ export default function NouveauArretePage() {
           <h2 className="fd" style={{ fontSize: 22, marginBottom: 14 }}>Type d'arrete</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))", gap: 9 }}>
             {TYPES_ARRETE.map((t) => (
-              <button key={t.code} onClick={() => allerFormulaire(t)} className="card-hover" style={{ textAlign: "left", padding: 13, borderRadius: 7, border: "1px solid #E4E1D6", background: "#FFFFFF", cursor: "pointer" }}>
+              <button key={t.code} onClick={() => allerFormulaire(t)} className="card-hover" style={{
+                textAlign: "left", padding: 13, borderRadius: 7, cursor: "pointer",
+                border: t.code === "autre" ? "1.5px dashed #A6A399" : "1px solid #E4E1D6",
+                background: t.code === "autre" ? "#FAFAF7" : "#FFFFFF",
+              }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-                  <span className="fm" style={{ fontSize: 9, background: "#EDEAE0", color: "#6B6A60", padding: "2px 5px", borderRadius: 3 }}>{t.suffixe}</span>
+                  <span className="fm" style={{ fontSize: 9, background: t.code === "autre" ? "#1E3A5F" : "#EDEAE0", color: t.code === "autre" ? "#FAFAF7" : "#6B6A60", padding: "2px 5px", borderRadius: 3 }}>{t.suffixe}</span>
                   {t.multi_phases && <span style={{ fontSize: 9, background: "#EDE9FE", color: "#7C3AED", padding: "2px 5px", borderRadius: 3, display: "flex", alignItems: "center", gap: 2 }}><Layers size={8} />Phase</span>}
+                  {t.code === "autre" && <span style={{ fontSize: 9, background: "#DBEAFE", color: "#1E3A5F", padding: "2px 5px", borderRadius: 3 }}>Libre</span>}
                 </div>
                 <p style={{ fontWeight: 600, fontSize: 12, margin: "0 0 2px" }}>{t.label}</p>
                 <p style={{ fontSize: 11, color: "#6B6A60", margin: 0 }}>{t.description}</p>

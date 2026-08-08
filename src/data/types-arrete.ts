@@ -127,4 +127,18 @@ export const TYPES_ARRETE: TypeArrete[] = [
       { id: "vehicule", label: "Véhicule", type: "select", options: ["< 10m³", "10–20m³", "> 20m³"] },
     ],
   },
+  {
+    code: "autre",
+    label: "Autre",
+    suffixe: "DIV",
+    description: "Arrêté personnalisé — rédigez librement vos articles",
+    multi_phases: false,
+    champs: [
+      { id: "nature_libre", label: "Nature de l'arrêté", type: "texte", placeholder: "Ex. Arrêté de police, Arrêté d'urbanisme…" },
+      { id: "localisation", label: "Localisation", type: "adresse", placeholder: "Ex. Place de la Mairie" },
+      { id: "demandeur", label: "Demandeur / Bénéficiaire", type: "texte", placeholder: "Facultatif" },
+      { id: "date_debut", label: "Début", type: "datetime" },
+      { id: "date_fin", label: "Fin", type: "datetime" },
+    ],
+  },
 ];

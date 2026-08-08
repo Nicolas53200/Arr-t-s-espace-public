@@ -28,7 +28,8 @@ export type CodeTypeArrete =
   | "manifestation_sportive"
   | "marche"
   | "occupation_dp"
-  | "demenagement";
+  | "demenagement"
+  | "autre";
 
 export type CategorieReference = "base_legale" | "delegation" | "circulation" | "stationnement";
 
