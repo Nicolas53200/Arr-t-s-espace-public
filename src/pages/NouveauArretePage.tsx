@@ -137,7 +137,7 @@ export default function NouveauArretePage() {
   const champsTypeRequis = useMemo(() => {
     if (!typeArrete) return [] as string[];
     return typeArrete.champs
-      .filter((c) => c.type !== "bool" && c.type !== "adresse")
+      .filter((c) => c.type !== "bool")
       .map((c) => c.id);
   }, [typeArrete]);
 
@@ -384,7 +384,16 @@ export default function NouveauArretePage() {
                 <Map size={12} /> Voies impactees
               </p>
               <button
-                onClick={() => setVoiesDeclarees((prev) => [...prev, { id: Date.now(), nom: "", touteRue: true, debut: "", fin: "", impact: "circulation_interdite" }])}
+                onClick={() => {
+                  const impactDefaut: CodeImpact = typeArrete?.code === "stationnement_interdit" || typeArrete?.code === "demenagement"
+                    ? "stationnement_interdit"
+                    : typeArrete?.code === "occupation_dp" || typeArrete?.code === "marche"
+                    ? "zone_reservee"
+                    : typeArrete?.code === "alternat"
+                    ? "deviation"
+                    : "circulation_interdite";
+                  setVoiesDeclarees((prev) => [...prev, { id: Date.now(), nom: "", touteRue: true, debut: "", fin: "", impact: impactDefaut }]);
+                }}
                 style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, background: "none", border: "none", cursor: "pointer", color: "#1E3A5F", fontWeight: 600 }}
               >
                 <Plus size={11} /> Ajouter une voie
@@ -457,14 +466,14 @@ export default function NouveauArretePage() {
 
           {typeArrete.multi_phases && <div style={{ background: "#EDE9FE", borderRadius: 5, padding: "8px 12px", marginBottom: 10, display: "flex", gap: 7, alignItems: "flex-start" }}><Layers size={12} color="#7C3AED" style={{ marginTop: 1, flexShrink: 0 }} /><p style={{ fontSize: 11, color: "#5B21B6", margin: 0 }}><strong>Phase :</strong> {typeArrete.aide_phases}</p></div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 16 }}>
-            {typeArrete.champs.filter((c) => c.type !== "adresse" && (typeArrete.multi_phases ? c.type !== "datetime" : true)).map((c) => (
+            {typeArrete.champs.filter((c) => (typeArrete.multi_phases ? c.type !== "datetime" : true)).map((c) => (
               <div key={c.id}>
                 <ChampFormulaire
                   champ={c}
                   valeur={valeurs[c.id]}
                   onChange={(v) => setValeurs((p) => ({ ...p, [c.id]: v }))}
                 />
-                {touchedEtape1[c.id] && erreursChamps[c.id] && c.type !== "bool" && c.type !== "adresse" && (
+                {touchedEtape1[c.id] && erreursChamps[c.id] && c.type !== "bool" && (
                   <p style={styleErreur}>{erreursChamps[c.id]}</p>
                 )}
               </div>
@@ -771,27 +780,52 @@ export default function NouveauArretePage() {
           </div>
         </div>
         {/* Colonne droite : aperçu carte */}
-        {!isMobile && (
-          <div style={{ position: "sticky", top: 20, height: "calc(100vh - 140px)", minHeight: 400 }}>
-            <CarteApercu
-              centre={tenant.centre_geo}
-              communeCodePostal={tenant.code_postal}
-              communeNom={tenant.nom.replace(/^Ville de /i, "")}
-              voies={voiesDeclarees.map((v) => ({ nom: v.nom, impact: v.impact }))}
-            />
-          </div>
-        )}
-        {/* Carte en dessous sur mobile */}
-        {isMobile && voiesDeclarees.some((v) => v.nom.trim().length >= 3) && (
-          <div style={{ marginTop: 16, height: 300 }}>
-            <CarteApercu
-              centre={tenant.centre_geo}
-              communeCodePostal={tenant.code_postal}
-              communeNom={tenant.nom.replace(/^Ville de /i, "")}
-              voies={voiesDeclarees.map((v) => ({ nom: v.nom, impact: v.impact }))}
-            />
-          </div>
-        )}
+        {(() => {
+          // Combiner les voies déclarées + le champ adresse du type d'arrêté
+          const voiesPourCarte = [
+            ...voiesDeclarees.map((v) => ({ nom: v.nom, impact: v.impact })),
+          ];
+          // Si le type d'arrêté a un champ adresse (localisation), l'inclure aussi
+          const champAdresseType = typeArrete?.champs.find((c) => c.type === "adresse");
+          if (champAdresseType) {
+            const valAdresse = (valeurs[champAdresseType.id] as string) ?? "";
+            if (valAdresse.trim().length >= 3) {
+              // Utiliser un impact adapté au type d'arrêté
+              const impactDefaut: CodeImpact = typeArrete?.code === "stationnement_interdit" ? "stationnement_interdit"
+                : typeArrete?.code === "demenagement" ? "stationnement_interdit"
+                : typeArrete?.code === "occupation_dp" ? "zone_reservee"
+                : typeArrete?.code === "marche" ? "zone_reservee"
+                : "circulation_interdite";
+              voiesPourCarte.push({ nom: valAdresse, impact: impactDefaut });
+            }
+          }
+          const hasVoies = voiesPourCarte.some((v) => v.nom.trim().length >= 3);
+
+          return (
+            <>
+              {!isMobile && (
+                <div style={{ position: "sticky", top: 20, height: "calc(100vh - 140px)", minHeight: 400 }}>
+                  <CarteApercu
+                    centre={tenant.centre_geo}
+                    communeCodePostal={tenant.code_postal}
+                    communeNom={tenant.nom.replace(/^Ville de /i, "")}
+                    voies={voiesPourCarte}
+                  />
+                </div>
+              )}
+              {isMobile && hasVoies && (
+                <div style={{ marginTop: 16, height: 300 }}>
+                  <CarteApercu
+                    centre={tenant.centre_geo}
+                    communeCodePostal={tenant.code_postal}
+                    communeNom={tenant.nom.replace(/^Ville de /i, "")}
+                    voies={voiesPourCarte}
+                  />
+                </div>
+              )}
+            </>
+          );
+        })()}
         </div>
       )}
 

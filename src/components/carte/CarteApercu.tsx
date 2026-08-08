@@ -89,43 +89,79 @@ function InitView({ centre }: { centre: [number, number] }) {
   return null;
 }
 
-/** Géocode une rue via l'API Adresse (gouvernement français) */
+/** Appel unique à l'API Adresse */
+async function fetchAdresse(
+  params: URLSearchParams,
+  signal: AbortSignal,
+): Promise<{ label: string; lat: number; lng: number } | null> {
+  const resp = await fetch(
+    `https://api-adresse.data.gouv.fr/search/?${params}`,
+    { signal },
+  );
+  if (!resp.ok) return null;
+
+  const data = await resp.json();
+  const features = data.features as Array<{
+    properties: { label: string; name: string; score: number };
+    geometry: { coordinates: [number, number] };
+  }>;
+
+  if (!features || features.length === 0) return null;
+
+  const f = features[0]!;
+  if (f.properties.score < 0.2) return null;
+
+  const [lng, lat] = f.geometry.coordinates;
+  return { label: f.properties.label, lat, lng };
+}
+
+/**
+ * Géocode une rue via l'API Adresse (gouvernement français).
+ * Essaie 3 stratégies successives :
+ * 1. Recherche type=street scopée au code postal
+ * 2. Recherche libre scopée au code postal (pour places, lieux-dits…)
+ * 3. Recherche libre nationale (si le code postal ne matche pas)
+ */
 async function geocoderRue(
   nom: string,
   codePostal: string | undefined,
+  communeNom: string | undefined,
   signal: AbortSignal,
 ): Promise<{ label: string; lat: number; lng: number } | null> {
   try {
-    const params = new URLSearchParams({
-      q: nom,
+    // Stratégie 1 : type=street + code postal
+    if (codePostal) {
+      const p1 = new URLSearchParams({
+        q: nom,
+        postcode: codePostal,
+        type: "street",
+        limit: "1",
+        autocomplete: "1",
+      });
+      const r1 = await fetchAdresse(p1, signal);
+      if (r1) return r1;
+    }
+
+    // Stratégie 2 : recherche libre + code postal (places, lieux-dits, etc.)
+    if (codePostal) {
+      const p2 = new URLSearchParams({
+        q: nom,
+        postcode: codePostal,
+        limit: "1",
+        autocomplete: "1",
+      });
+      const r2 = await fetchAdresse(p2, signal);
+      if (r2) return r2;
+    }
+
+    // Stratégie 3 : recherche libre avec nom de commune
+    const q3 = communeNom ? `${nom}, ${communeNom}` : nom;
+    const p3 = new URLSearchParams({
+      q: q3,
       limit: "1",
       autocomplete: "1",
     });
-    if (codePostal) {
-      params.set("postcode", codePostal);
-      params.set("type", "street");
-    }
-
-    const resp = await fetch(
-      `https://api-adresse.data.gouv.fr/search/?${params}`,
-      { signal },
-    );
-    if (!resp.ok) return null;
-
-    const data = await resp.json();
-    const features = data.features as Array<{
-      properties: { label: string; name: string; score: number };
-      geometry: { coordinates: [number, number] };
-    }>;
-
-    if (!features || features.length === 0) return null;
-
-    const f = features[0]!;
-    // Vérifier un score minimum de pertinence
-    if (f.properties.score < 0.3) return null;
-
-    const [lng, lat] = f.geometry.coordinates;
-    return { label: f.properties.label, lat, lng };
+    return await fetchAdresse(p3, signal);
   } catch {
     return null;
   }
@@ -183,7 +219,7 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
           continue;
         }
 
-        const result = await geocoderRue(nom, communeCodePostal, controller.signal);
+        const result = await geocoderRue(nom, communeCodePostal, communeNom, controller.signal);
         if (controller.signal.aborted) break;
 
         if (result) {

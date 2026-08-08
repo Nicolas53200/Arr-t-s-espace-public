@@ -40,6 +40,18 @@ export default function ChampFormulaire({ champ, valeur, onChange }: ChampFormul
       </div>
     );
   }
+  if (champ.type === "adresse") {
+    return (
+      <div>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, marginBottom: 4 }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1E3A5F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          {champ.label}
+          <span style={{ fontSize: 10, color: "#6B6A60", fontWeight: 400 }}>· visible sur la carte</span>
+        </label>
+        <input type="text" placeholder={champ.placeholder || ""} value={(valeur as string) || ""} onChange={(e) => onChange(e.target.value)} />
+      </div>
+    );
+  }
   return (
     <div>
       <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>{champ.label}</label>
