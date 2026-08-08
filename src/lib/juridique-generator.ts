@@ -69,6 +69,28 @@ const CONSIDERANTS_BASE: Record<string, string[]> = {
     "que les opérations de déménagement nécessitent la réservation temporaire d'un emplacement sur la voie publique",
     "qu'il convient de faciliter les opérations tout en garantissant la sécurité des usagers",
   ],
+  nuisances_sonores: [
+    "qu'il appartient au maire de prendre les mesures nécessaires pour réprimer les atteintes à la tranquillité publique, conformément à l'article L. 2212-2 du CGCT",
+    "que les nuisances sonores constatées portent atteinte au repos et à la tranquillité des habitants",
+  ],
+  zone_30: [
+    "qu'il convient de modérer la vitesse des véhicules afin de garantir la sécurité de tous les usagers de la voie publique, en particulier les piétons et les cyclistes",
+    "que la configuration des lieux et la fréquentation piétonne justifient l'instauration d'une zone à circulation apaisée",
+  ],
+  peril: [
+    "que l'état de l'immeuble constitue un danger pour la sécurité des occupants et des passants, conformément aux articles L. 511-1 et suivants du Code de la construction et de l'habitation",
+    "qu'il appartient au maire de prescrire la réparation ou la démolition des immeubles menaçant ruine, conformément à ses pouvoirs de police",
+    "que le rapport d'expertise a conclu à l'existence d'un péril affectant la solidité de l'immeuble ou d'éléments de celui-ci",
+  ],
+  debit_boissons: [
+    "qu'il appartient au maire de réglementer les horaires de fermeture des débits de boissons dans l'intérêt de l'ordre, de la santé et de la tranquillité publics",
+    "que les nuisances constatées aux abords de l'établissement justifient la prise de mesures de police administrative",
+  ],
+  pietonnisation: [
+    "qu'il convient de réserver temporairement l'usage de certaines voies aux piétons afin de garantir leur sécurité et d'améliorer le cadre de vie",
+    "que la configuration des lieux et l'affluence piétonne justifient la fermeture temporaire de la circulation motorisée",
+    "que les nécessités d'assurer l'accès des véhicules de secours doivent être garanties",
+  ],
 };
 
 // ──── Dérogations par type ────
@@ -106,6 +128,21 @@ const DEROGATIONS_BASE: Record<string, string[]> = {
   demenagement: [
     "Véhicules de secours (SDIS, SAMU, police, gendarmerie)",
   ],
+  nuisances_sonores: [],
+  zone_30: [
+    "Véhicules de secours (SDIS, SAMU, police, gendarmerie)",
+    "Véhicules de livraison dans les créneaux horaires autorisés",
+  ],
+  peril: [
+    "Véhicules de secours (SDIS, SAMU, police, gendarmerie)",
+    "Entreprises de travaux mandatées par le propriétaire pour les travaux de mise en sécurité",
+  ],
+  debit_boissons: [],
+  pietonnisation: [
+    "Véhicules de secours (SDIS, SAMU, police, gendarmerie)",
+    "Riverains sur présentation d'un justificatif de domicile, circulation au pas",
+    "Véhicules de livraison dans les créneaux horaires autorisés",
+  ],
 };
 
 // ──── Périmètre par type ────
@@ -120,6 +157,10 @@ function genererPerimetre(ctx: ContexteArrete): string {
     case "manifestation_sportive":
     case "marche":
       return `La zone réglementée est délimitée par ${voiesTexte}. Les limites sont matérialisées par des barrières de sécurité et une signalisation temporaire conforme à la réglementation en vigueur.`;
+    case "pietonnisation":
+      return `La zone piétonnisée comprend ${voiesTexte}. Les accès sont matérialisés par des bornes, barrières ou panneaux réglementaires.`;
+    case "peril":
+      return `Le périmètre de sécurité est établi autour de l'immeuble situé ${voiesTexte}. L'accès à la zone de danger est interdit au public.`;
     default:
       return "";
   }
@@ -138,6 +179,30 @@ function genererArticlesPersonnalises(ctx: ContexteArrete): ArticlePersonnalise[
         id: `gen_${Date.now()}_orga`,
         titre: "Responsabilité de l'organisateur",
         contenu: `L'organisateur (${organisateur}) est tenu de se conformer aux prescriptions du présent arrêté et de prendre toutes les mesures nécessaires pour assurer la sécurité des participants et du public. Il devra remettre les lieux en l'état à l'issue de la manifestation.`,
+      });
+    }
+  }
+
+  // Pour les arrêtés de péril, article sur les obligations du propriétaire
+  if (ctx.type_code === "peril") {
+    const proprietaire = (ctx.valeurs["proprietaire"] as string) || "";
+    const mesures = (ctx.valeurs["mesures"] as string) || "Travaux de mise en sécurité";
+    const delai = (ctx.valeurs["delai_travaux"] as string) || "";
+    articles.push({
+      id: `gen_${Date.now()}_peril`,
+      titre: "Obligations du propriétaire",
+      contenu: `${proprietaire ? `Le propriétaire (${proprietaire})` : "Le propriétaire"} est tenu de procéder aux mesures prescrites (${mesures.toLowerCase()})${delai ? ` dans un délai de ${delai}` : ""}. À défaut, la commune pourra se substituer au propriétaire pour l'exécution d'office des travaux, aux frais de celui-ci.`,
+    });
+  }
+
+  // Pour la piétonnisation, article sur les conditions d'accès
+  if (ctx.type_code === "pietonnisation") {
+    const livraisons = (ctx.valeurs["acces_livraisons"] as string) || "";
+    if (livraisons) {
+      articles.push({
+        id: `gen_${Date.now()}_livr`,
+        titre: "Conditions de livraison",
+        contenu: `Les véhicules de livraison sont autorisés à accéder à la zone piétonnisée uniquement sur le créneau horaire suivant : ${livraisons}. En dehors de ce créneau, aucun véhicule motorisé n'est autorisé à pénétrer dans la zone, à l'exception des véhicules de secours.`,
       });
     }
   }
@@ -178,13 +243,13 @@ export function genererContenuJuridique(ctx: ContexteArrete): ContenuJuridique {
   const derogationsBase = DEROGATIONS_BASE[ctx.type_code] ?? [];
   const derogations = [...derogationsBase];
 
-  // Fourrière recommandée si stationnement interdit ou manifestation/marché
+  // Fourrière recommandée si stationnement interdit ou manifestation/marché/piétonnisation
   const recommanderFourriere = hasStationnement ||
     hasCirculation ||
-    ["manifestation", "manifestation_sportive", "marche"].includes(ctx.type_code);
+    ["manifestation", "manifestation_sportive", "marche", "pietonnisation"].includes(ctx.type_code);
 
   // Recours recommandé pour les arrêtés longs ou de grande envergure
-  const recommanderRecours = ["manifestation", "manifestation_sportive", "marche", "travaux"].includes(ctx.type_code);
+  const recommanderRecours = ["manifestation", "manifestation_sportive", "marche", "travaux", "peril", "debit_boissons", "pietonnisation"].includes(ctx.type_code);
 
   // Périmètre
   const perimetre = genererPerimetre(ctx);

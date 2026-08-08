@@ -413,6 +413,10 @@ export default function NouveauArretePage() {
                     ? "zone_reservee"
                     : typeArrete?.code === "alternat"
                     ? "deviation"
+                    : typeArrete?.code === "pietonnisation" || typeArrete?.code === "zone_30"
+                    ? "zone_reservee"
+                    : typeArrete?.code === "peril"
+                    ? "circulation_interdite"
                     : "circulation_interdite";
                   setVoiesDeclarees((prev) => [...prev, { id: Date.now(), nom: "", touteRue: true, debut: "", fin: "", impact: impactDefaut }]);
                 }}
@@ -820,6 +824,8 @@ export default function NouveauArretePage() {
                 : typeArrete?.code === "demenagement" ? "stationnement_interdit"
                 : typeArrete?.code === "occupation_dp" ? "zone_reservee"
                 : typeArrete?.code === "marche" ? "zone_reservee"
+                : typeArrete?.code === "pietonnisation" ? "zone_reservee"
+                : typeArrete?.code === "zone_30" ? "zone_reservee"
                 : "circulation_interdite";
               voiesPourCarte.push({ nom: valAdresse, impact: impactDefaut });
             }

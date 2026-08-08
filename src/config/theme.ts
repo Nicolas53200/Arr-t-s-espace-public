@@ -45,5 +45,8 @@ export const COULEUR_TYPE: Record<CodeTypeArrete, string> = {
   demenagement: "#1E3A5F",
   nuisances_sonores: "#7E22CE",
   zone_30: "#0D9488",
+  peril: "#991B1B",
+  debit_boissons: "#7C2D12",
+  pietonnisation: "#0E7490",
   autre: "#4B5563",
 };
