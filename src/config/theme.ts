@@ -43,5 +43,7 @@ export const COULEUR_TYPE: Record<CodeTypeArrete, string> = {
   marche: "#B45309",
   occupation_dp: "#6B7280",
   demenagement: "#1E3A5F",
+  nuisances_sonores: "#7E22CE",
+  zone_30: "#0D9488",
   autre: "#4B5563",
 };

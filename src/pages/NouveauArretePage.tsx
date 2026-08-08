@@ -16,9 +16,10 @@ import { VOIES } from "@/data/voies";
 import { getCommunes } from "@/lib/registre";
 import { genNum } from "@/lib/arrete";
 import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
+import RecurrenceSelector from "@/components/formulaire/RecurrenceSelector";
 import CarteDessin from "@/components/carte/CarteDessin";
 import CarteApercu from "@/components/carte/CarteApercu";
-import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact, ArticlePersonnalise } from "@/types";
+import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact, ArticlePersonnalise, Recurrence } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { validerChamp } from "@/lib/validation";
 import type { RegleValidation } from "@/lib/validation";
@@ -117,6 +118,9 @@ export default function NouveauArretePage() {
   );
   const [perimetre, setPerimetre] = useState(
     () => arreteExistant?.perimetre ?? "",
+  );
+  const [recurrence, setRecurrence] = useState<Recurrence | undefined>(
+    () => arreteExistant?.recurrence,
   );
 
   /* ---- Validation state ---- */
@@ -223,6 +227,7 @@ export default function NouveauArretePage() {
       setClauseRecours(false);
       setPerimetre("");
     }
+    setRecurrence(undefined);
     setEtape(1);
   }
 
@@ -298,10 +303,10 @@ export default function NouveauArretePage() {
 
     if (arreteExistant) {
       const h = { version: (arreteExistant.versions.length) + 1, date: AUJOURD_HUI.toISOString().split("T")[0]!, auteur: "M. Lefèvre", motif: motifModification || "Modification", titre: arreteExistant.titre };
-      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "modifie", voies: tv, troncons: tronconsFlatMap, versions: [h, ...arreteExistant.versions], commune: communeChoisie?.nom ?? "", commune_id: communeId, ...donneesJuridiques } });
+      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "modifie", voies: tv, troncons: tronconsFlatMap, versions: [h, ...arreteExistant.versions], commune: communeChoisie?.nom ?? "", commune_id: communeId, recurrence, ...donneesJuridiques } });
       setDernierArrete({ numero: arreteExistant.numero, mode: "modifie", titre: titreArrete });
     } else {
-      const nouvel: Arrete = { id: `a${Date.now()}`, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: "M. Lefèvre", date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, ...donneesJuridiques };
+      const nouvel: Arrete = { id: `a${Date.now()}`, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: "M. Lefèvre", date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, recurrence, ...donneesJuridiques };
       dispatch({ type: "ADD", arrete: nouvel });
       setDernierArrete({ numero: num, mode: "cree", titre: titreArrete || typeArrete!.label });
     }
@@ -546,6 +551,9 @@ export default function NouveauArretePage() {
               ))}
             </div>
           )}
+          {/* ─── Récurrence (arrêté permanent) ─── */}
+          <RecurrenceSelector value={recurrence} onChange={setRecurrence} />
+
           {/* ─── Section contenu juridique (arrêté complexe) ─── */}
           <div style={{ border: "1px solid #E4E1D6", borderRadius: 7, marginBottom: 14, overflow: "hidden" }}>
             {/* Barre titre + bouton générer */}
@@ -926,6 +934,34 @@ export default function NouveauArretePage() {
               ))}
             </div>
           </div>
+          {/* Résumé récurrence */}
+          {recurrence && (
+            <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 14, marginBottom: 10 }}>
+              <p style={{ fontWeight: 600, fontSize: 12, margin: "0 0 6px", display: "flex", alignItems: "center", gap: 5 }}>
+                <RefreshCw size={12} color="#7C3AED" /> Récurrence
+              </p>
+              <p style={{ fontSize: 11, color: "#5B21B6", margin: 0, background: "#EDE9FE", borderRadius: 5, padding: "5px 10px" }}>
+                {recurrence.type === "permanent" && "Applicable en permanence, sans limite de durée."}
+                {recurrence.type === "hebdomadaire" && (
+                  <>
+                    {(recurrence.jours?.length ?? 0) === 0
+                      ? "Hebdomadaire — jours non précisés"
+                      : `Chaque ${recurrence.jours!.join(", ")}`}
+                    {recurrence.heure_debut && recurrence.heure_fin && ` de ${recurrence.heure_debut} à ${recurrence.heure_fin}`}
+                  </>
+                )}
+                {recurrence.type === "mensuel" && (
+                  <>
+                    {(recurrence.jours_mois?.length ?? 0) === 0
+                      ? "Mensuel — jours non précisés"
+                      : `Le ${recurrence.jours_mois!.join(", ")} de chaque mois`}
+                    {recurrence.heure_debut && recurrence.heure_fin && ` de ${recurrence.heure_debut} à ${recurrence.heure_fin}`}
+                  </>
+                )}
+                {recurrence.type === "annuel" && `Saisonnier — chaque année`}
+              </p>
+            </div>
+          )}
           {/* Résumé contenu juridique */}
           {(considerants.some((c) => c.trim()) || derogations.some((d) => d.trim()) || clauseFourriere || clauseRecours || perimetre.trim() || articlesPerso.some((a) => a.titre.trim())) && (
             <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 14, marginBottom: 10 }}>
@@ -1004,6 +1040,7 @@ export default function NouveauArretePage() {
                   clause_fourriere: clauseFourriere,
                   clause_recours: clauseRecours,
                   perimetre: perimetre.trim() || undefined,
+                  recurrence,
                 };
                 ouvrirApercuPdf(apercu, references, tenant.nom, tenant.code_postal, tenant);
               }} style={{ fontSize: 12 }}><FileText size={12} />Apercu PDF</button>

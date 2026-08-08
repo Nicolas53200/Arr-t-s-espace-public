@@ -17,6 +17,8 @@ export type {
   HistoriqueReference,
   Reference,
   CategorieRef,
+  JourSemaine,
+  Recurrence,
 } from "./domain";
 
 export type { Role, Permission, User, TenantInfo } from "./auth";
