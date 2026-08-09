@@ -101,10 +101,10 @@ export async function rechercherRues(
   if (query.length < 2) return [];
 
   try {
+    // Recherche large (sans restriction de type) pour trouver rues, places, lieux-dits…
     const params = new URLSearchParams({
       q: query,
       postcode: codePostal,
-      type: "street",
       limit: String(limite),
       autocomplete: "1",
     });
@@ -113,15 +113,18 @@ export async function rechercherRues(
     if (!res.ok) return [];
 
     const data: ReponseAdresse = await res.json();
-    return data.features.map((f) => ({
-      label: f.properties.label,
-      nom: f.properties.name,
-      code_postal: f.properties.postcode,
-      commune: f.properties.city,
-      lat: f.geometry.coordinates[1],
-      lng: f.geometry.coordinates[0],
-      type: f.properties.type as ResultatGeocodage["type"],
-    }));
+    // Filtrer les résultats de type municipality (on cherche des voies, pas des communes)
+    return data.features
+      .filter((f) => f.properties.type !== "municipality")
+      .map((f) => ({
+        label: f.properties.label,
+        nom: f.properties.name,
+        code_postal: f.properties.postcode,
+        commune: f.properties.city,
+        lat: f.geometry.coordinates[1],
+        lng: f.geometry.coordinates[0],
+        type: f.properties.type as ResultatGeocodage["type"],
+      }));
   } catch {
     return [];
   }
