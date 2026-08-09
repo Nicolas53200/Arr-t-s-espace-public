@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Building2, Home, CheckCircle2, Map, History, BookOpen, BookOpenCheck, ClipboardCheck, BarChart3, ScrollText, Settings, Menu, X, LogOut, HelpCircle, Compass } from "lucide-react";
+import { Building2, Home, CheckCircle2, Map, History, BookOpen, BookOpenCheck, ClipboardCheck, BarChart3, ScrollText, Settings, Menu, X, LogOut, HelpCircle, Compass, Search } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import RechercheGlobale from "@/components/common/RechercheGlobale";
 import { AUJOURD_HUI } from "@/config/constants";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
@@ -17,7 +18,21 @@ export default function Header() {
   const { actifs, arretes } = useArretes();
   const { references } = useReferences();
   const [menuOuvert, setMenuOuvert] = useState(false);
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
+
+  // Raccourci clavier Cmd/Ctrl+K
+  const gererRaccourci = useCallback((e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      setRechercheOuverte((o) => !o);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("keydown", gererRaccourci);
+    return () => document.removeEventListener("keydown", gererRaccourci);
+  }, [gererRaccourci]);
 
   const alertes = references.filter((r) => {
     if (!r.actif || !r.date_fin_validite) return false;
@@ -93,6 +108,45 @@ export default function Header() {
 
         {/* Right side */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={() => setRechercheOuverte(true)}
+            title="Recherche (⌘K)"
+            aria-label="Ouvrir la recherche globale"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              height: 30,
+              background: "none",
+              border: "1px solid #E4E1D6",
+              borderRadius: 6,
+              cursor: "pointer",
+              color: "#6B6A60",
+              padding: "0 10px",
+              flexShrink: 0,
+              fontSize: 12,
+              fontFamily: "'IBM Plex Sans', sans-serif",
+            }}
+          >
+            <Search size={13} />
+            {!isMobile && (
+              <>
+                <span style={{ color: "#A6A399" }}>Rechercher…</span>
+                <kbd style={{
+                  fontSize: 10,
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  background: "#F4F2EC",
+                  borderRadius: 3,
+                  padding: "1px 4px",
+                  color: "#6B6A60",
+                  border: "1px solid #E4E1D6",
+                  lineHeight: 1,
+                }}>
+                  ⌘K
+                </kbd>
+              </>
+            )}
+          </button>
           <button
             onClick={() => navigate("/faq")}
             title="Aide & FAQ"
@@ -252,6 +306,7 @@ export default function Header() {
           </div>
         </nav>
       )}
+      <RechercheGlobale ouvert={rechercheOuverte} onFermer={() => setRechercheOuverte(false)} />
     </header>
   );
 }
