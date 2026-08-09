@@ -6,4 +6,5 @@ export const TYPES_IMPACT: TypeImpact[] = [
   { code: "deviation", label: "Déviation", couleur: "#7C3AED" },
   { code: "zone_reservee", label: "Zone réservée", couleur: "#0369A1" },
   { code: "passage_maintenu", label: "Passage secours maintenu", couleur: "#2F6B4F" },
+  { code: "alternat", label: "Circulation alternée", couleur: "#92400E" },
 ];

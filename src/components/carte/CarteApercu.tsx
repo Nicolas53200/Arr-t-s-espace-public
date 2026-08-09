@@ -58,12 +58,14 @@ function pinIcon(impactColor: string) {
 /** Ajuste la vue pour contenir tous les marqueurs */
 function FitMarkers({ voies, centre }: { voies: VoieLocalisee[]; centre?: [number, number] }) {
   const map = useMap();
-  const prevCount = useRef(0);
+  const prevKey = useRef("");
 
   useEffect(() => {
     if (voies.length === 0) return;
-    if (voies.length === prevCount.current) return;
-    prevCount.current = voies.length;
+    // Recaler dès que les positions changent (pas seulement le nombre)
+    const key = voies.map((v) => `${v.lat.toFixed(5)},${v.lng.toFixed(5)}`).join("|");
+    if (key === prevKey.current) return;
+    prevKey.current = key;
 
     if (voies.length === 1) {
       map.setView([voies[0]!.lat, voies[0]!.lng], 16);

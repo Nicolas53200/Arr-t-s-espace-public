@@ -1,13 +1,15 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, Check, Plus, X, Layers, Flag, Edit2, RefreshCw,
-  FileText, MapPin, Home, Map, Scale, Shield, AlertTriangle, ChevronDown,
+  FileText, MapPin, Home, Map, Scale, Shield, AlertTriangle, ChevronDown, Save,
 } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { useAudit } from "@/contexts/AuditContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { ouvrirApercuPdf } from "@/lib/pdf-client";
 import { AUJOURD_HUI } from "@/config/constants";
 import { TYPES_ARRETE } from "@/data/types-arrete";
@@ -53,6 +55,8 @@ export default function NouveauArretePage() {
   const { references } = useReferences();
   const { tenant } = useTenant();
   const toast = useToast();
+  const { logAction } = useAudit();
+  const { user } = useAuth();
   const COMMUNES = useMemo(() => getCommunes(), []);
 
   const arreteExistant = id ? arretes.find((a) => a.id === id) : null;
@@ -122,6 +126,61 @@ export default function NouveauArretePage() {
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>(
     () => arreteExistant?.recurrence,
   );
+
+  /* ---- Guard "modifications non sauvegardees" ---- */
+  const [sauvegarde, setSauvegarde] = useState(false);
+  const formulaireDirty = useMemo(() => {
+    if (publie || sauvegarde) return false;
+    if (etape === 0) return false; // pas encore de saisie
+    return (
+      titreArrete.length > 0 ||
+      voiesDeclarees.length > 0 ||
+      phases.some((ph) => ph.troncons.length > 0) ||
+      considerants.length > 0 ||
+      Object.keys(valeurs).some((k) => (valeurs[k] as string)?.length > 0)
+    );
+  }, [titreArrete, voiesDeclarees, phases, considerants, valeurs, publie, sauvegarde, etape]);
+
+  // Bloquer la fermeture de l'onglet / actualisation
+  useEffect(() => {
+    if (!formulaireDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [formulaireDirty]);
+
+  // Bloquer le bouton retour du navigateur
+  const formulaireDirtyRef = useRef(false);
+  formulaireDirtyRef.current = formulaireDirty;
+  useEffect(() => {
+    if (!formulaireDirty) return;
+    // Empiler un état pour pouvoir intercepter le popstate
+    window.history.pushState(null, "", window.location.href);
+    const handler = (e: PopStateEvent) => {
+      if (formulaireDirtyRef.current) {
+        e.preventDefault();
+        // Remettre l'état pour re-intercepter
+        window.history.pushState(null, "", window.location.href);
+        setShowQuitterModale(true);
+      }
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, [formulaireDirty]);
+
+  // Navigation sécurisée qui vérifie les modifications
+  const [showQuitterModale, setShowQuitterModale] = useState(false);
+  const [destinationQuitter, setDestinationQuitter] = useState<string | null>(null);
+  const naviguerAvecGarde = useCallback((dest: string) => {
+    if (formulaireDirtyRef.current) {
+      setDestinationQuitter(dest);
+      setShowQuitterModale(true);
+    } else {
+      navigate(dest);
+    }
+  }, [navigate]);
 
   /* ---- Validation state ---- */
   const [touchedEtape1, setTouchedEtape1] = useState<Record<string, boolean>>({});
@@ -286,6 +345,35 @@ export default function NouveauArretePage() {
     setPhases((prev) => prev.map((ph, idx) => idx === i ? { ...ph, [f]: v } : ph));
   }
 
+  function enregistrerBrouillon() {
+    const num = genNum(typeArrete!.suffixe, nextIdx);
+    const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.label || VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];
+    const tronconsFlatMap = phases.flatMap((ph) => ph.troncons);
+    const communeChoisie = COMMUNES.find((c) => c.id === communeId);
+    const donneesJuridiques = {
+      considerants: considerants.filter((c) => c.trim().length > 0),
+      derogations: derogations.filter((d) => d.trim().length > 0),
+      articles_personnalises: articlesPerso.filter((a) => a.titre.trim().length > 0 || a.contenu.trim().length > 0),
+      clause_fourriere: clauseFourriere,
+      clause_recours: clauseRecours,
+      perimetre: perimetre.trim() || undefined,
+    };
+    const nomAuteur = user?.nom ?? "Agent";
+
+    if (arreteExistant) {
+      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "brouillon", voies: tv, troncons: tronconsFlatMap, commune: communeChoisie?.nom ?? "", commune_id: communeId, recurrence, ...donneesJuridiques } });
+      logAction("modification", "arrete", arreteExistant.id, `Sauvegarde brouillon — ${arreteExistant.numero}`, { statut: "brouillon" });
+    } else {
+      const arreteId = `a${Date.now()}`;
+      const nouvel: Arrete = { id: arreteId, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "brouillon", cree_par: nomAuteur, date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, recurrence, ...donneesJuridiques };
+      dispatch({ type: "ADD", arrete: nouvel });
+      logAction("creation", "arrete", arreteId, `Brouillon créé — ${num} — ${titreArrete || typeArrete!.label}`, { statut: "brouillon" });
+    }
+    setSauvegarde(true);
+    toast.success("Brouillon enregistre");
+    navigate("/");
+  }
+
   function publierArrete() {
     const num = genNum(typeArrete!.suffixe, nextIdx);
     const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.label || VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];
@@ -301,25 +389,59 @@ export default function NouveauArretePage() {
       perimetre: perimetre.trim() || undefined,
     };
 
+    const nomAuteur = user?.nom ?? "Agent";
     if (arreteExistant) {
-      const h = { version: (arreteExistant.versions.length) + 1, date: AUJOURD_HUI.toISOString().split("T")[0]!, auteur: "M. Lefèvre", motif: motifModification || "Modification", titre: arreteExistant.titre };
+      const h = { version: (arreteExistant.versions.length) + 1, date: AUJOURD_HUI.toISOString().split("T")[0]!, auteur: nomAuteur, motif: motifModification || "Modification", titre: arreteExistant.titre };
       dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "modifie", voies: tv, troncons: tronconsFlatMap, versions: [h, ...arreteExistant.versions], commune: communeChoisie?.nom ?? "", commune_id: communeId, recurrence, ...donneesJuridiques } });
       setDernierArrete({ numero: arreteExistant.numero, mode: "modifie", titre: titreArrete });
+      logAction("modification", "arrete", arreteExistant.id, `Modification de l'arrêté ${arreteExistant.numero} — ${titreArrete || arreteExistant.titre}`, { motif: motifModification || "Modification" });
     } else {
-      const nouvel: Arrete = { id: `a${Date.now()}`, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: "M. Lefèvre", date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, recurrence, ...donneesJuridiques };
+      const arreteId = `a${Date.now()}`;
+      const nouvel: Arrete = { id: arreteId, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: nomAuteur, date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, recurrence, ...donneesJuridiques };
       dispatch({ type: "ADD", arrete: nouvel });
       setDernierArrete({ numero: num, mode: "cree", titre: titreArrete || typeArrete!.label });
+      logAction("creation", "arrete", arreteId, `Création de l'arrêté ${num} — ${titreArrete || typeArrete!.label}`);
     }
     setPublie(true);
+    setSauvegarde(true);
     toast.success("Arrete publie avec succes");
   }
 
   return (
     <div style={{ paddingTop: 28, maxWidth: 1200, margin: "0 auto", padding: isMobile ? "20px 16px 48px" : "28px 24px 48px" }}>
+      {/* Modale de confirmation — modifications non sauvegardees */}
+      {showQuitterModale && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }}>
+          <div style={{ background: "#FFFFFF", borderRadius: 10, padding: "24px 28px", maxWidth: 400, width: "90%", boxShadow: "0 8px 30px rgba(0,0,0,0.18)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <AlertTriangle size={18} color="#D97706" />
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Modifications non sauvegardees</h3>
+            </div>
+            <p style={{ fontSize: 13, color: "#6B6A60", margin: "0 0 20px", lineHeight: 1.5 }}>
+              Vous avez des modifications en cours. Souhaitez-vous quitter sans enregistrer ?
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                className="btn-ghost"
+                onClick={() => setShowQuitterModale(false)}
+                style={{ fontSize: 12 }}
+              >
+                Continuer l'edition
+              </button>
+              <button
+                onClick={() => { setSauvegarde(true); setShowQuitterModale(false); if (destinationQuitter) navigate(destinationQuitter); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: "#B91C1C", color: "#FAFAF7", fontFamily: "'IBM Plex Sans',sans-serif" }}
+              >
+                Quitter sans sauvegarder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {!publie && (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 20, flexWrap: "wrap" }}>
-            <button onClick={() => navigate("/")} className="btn-ghost" style={{ padding: "4px 8px", fontSize: 11 }}><ChevronLeft size={12} />Accueil</button>
+            <button onClick={() => naviguerAvecGarde("/")} className="btn-ghost" style={{ padding: "4px 8px", fontSize: 11 }}><ChevronLeft size={12} />Accueil</button>
             <div style={{ width: 1, height: 12, background: "#D8D5C8" }} />
             {(arreteExistant ? ["Renseignements", "Voies", "Récapitulatif"] : ["Type", "Renseignements", "Voies", "Récapitulatif"]).map((lb, i) => {
               const ep = arreteExistant ? i + 1 : i;
@@ -797,15 +919,26 @@ export default function NouveauArretePage() {
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <button className="btn-ghost" onClick={() => arreteExistant ? navigate("/") : setEtape(0)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
-            <button
-              className="btn-primary"
-              onClick={tentativeAllerCarte}
-              disabled={!etape1Valide}
-              style={{ fontSize: 12, background: etape1Valide ? "#1E3A5F" : "#D8D5C8" }}
-            >
-              Identifier les voies <ChevronRight size={13} />
-            </button>
+            <button className="btn-ghost" onClick={() => arreteExistant ? naviguerAvecGarde("/") : setEtape(0)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
+            <div style={{ display: "flex", gap: 8 }}>
+              {titreArrete.length > 0 && (
+                <button
+                  className="btn-ghost"
+                  onClick={enregistrerBrouillon}
+                  style={{ fontSize: 12, color: "#6B6A60" }}
+                >
+                  <Save size={12} /> Brouillon
+                </button>
+              )}
+              <button
+                className="btn-primary"
+                onClick={tentativeAllerCarte}
+                disabled={!etape1Valide}
+                style={{ fontSize: 12, background: etape1Valide ? "#1E3A5F" : "#D8D5C8" }}
+              >
+                Identifier les voies <ChevronRight size={13} />
+              </button>
+            </div>
           </div>
         </div>
         {/* Colonne droite : aperçu carte */}
@@ -903,14 +1036,23 @@ export default function NouveauArretePage() {
           />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
             <button className="btn-ghost" onClick={() => setEtape(1)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
-            <button
-              className="btn-primary"
-              onClick={tentativeAllerRecap}
-              disabled={!etape2Valide}
-              style={{ background: etape2Valide ? "#1E3A5F" : "#D8D5C8", fontSize: 12 }}
-            >
-              Valider <ChevronRight size={13} />
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="btn-ghost"
+                onClick={enregistrerBrouillon}
+                style={{ fontSize: 12, color: "#6B6A60" }}
+              >
+                <Save size={12} /> Brouillon
+              </button>
+              <button
+                className="btn-primary"
+                onClick={tentativeAllerRecap}
+                disabled={!etape2Valide}
+                style={{ background: etape2Valide ? "#1E3A5F" : "#D8D5C8", fontSize: 12 }}
+              >
+                Valider <ChevronRight size={13} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1019,7 +1161,14 @@ export default function NouveauArretePage() {
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <button className="btn-ghost" onClick={() => setEtape(2)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                className="btn-ghost"
+                onClick={enregistrerBrouillon}
+                style={{ fontSize: 12, color: "#6B6A60" }}
+              >
+                <Save size={12} /> Brouillon
+              </button>
               <button className="btn-secondary" onClick={() => {
                 const tronconsFlatMap = phases.flatMap((ph) => ph.troncons);
                 const tv = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.label || VOIES.find((v) => v.id === t.voie_id)?.nom || t.voie_id)))];

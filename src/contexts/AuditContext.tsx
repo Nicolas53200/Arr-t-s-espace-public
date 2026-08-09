@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useCallback, type ReactNode } from "react";
 import type { EntreeAudit, ActionAudit } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AuditState {
   journal: EntreeAudit[];
@@ -152,6 +153,7 @@ const AuditContext = createContext<AuditContextValue | null>(null);
 
 export function AuditProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(auditReducer, { journal: JOURNAL_INITIAL });
+  const { user } = useAuth();
 
   const logAction = useCallback(
     (
@@ -167,13 +169,13 @@ export function AuditProvider({ children }: { children: ReactNode }) {
         entite,
         entiteId,
         description,
-        auteur: "Utilisateur courant",
+        auteur: user?.nom ?? "Système",
         date: new Date().toISOString(),
         details,
       };
       dispatch({ type: "LOG", entree });
     },
-    []
+    [user]
   );
 
   const clear = useCallback(() => {
