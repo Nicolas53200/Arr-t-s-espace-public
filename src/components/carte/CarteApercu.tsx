@@ -2,11 +2,15 @@
  * CarteApercu — carte de prévisualisation en lecture seule.
  *
  * Affiche les voies déclarées dans le formulaire en les surlignant
- * sur la carte grâce aux tracés obtenus via Nominatim (OpenStreetMap).
+ * sur la carte grâce aux tracés complets obtenus via Overpass API
+ * (tous les tronçons d'une même rue dans la commune).
+ *
+ * Stratégie de géocodage :
+ *  1. Overpass API (batch) → tracé complet de toute la rue
+ *  2. Nominatim (polygon_geojson) → tracé partiel (un seul tronçon)
+ *  3. api-adresse.data.gouv.fr → point seul (fallback)
  *
  * Debounce de 800ms après la dernière frappe.
- * Respect du rate-limit Nominatim : 1 requête/seconde.
- * Fallback vers api-adresse.data.gouv.fr pour les voies non trouvées.
  */
 import { useEffect, useRef, useState, useMemo, Fragment } from "react";
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
@@ -26,13 +30,9 @@ interface VoieLocalisee {
 }
 
 interface Props {
-  /** Centre initial de la carte [lat, lng] */
   centre?: [number, number];
-  /** Code postal de la commune pour scoper la recherche */
   communeCodePostal?: string;
-  /** Nom de la commune */
   communeNom?: string;
-  /** Voies déclarées dans le formulaire */
   voies: { nom: string; impact: CodeImpact }[];
 }
 
@@ -43,20 +43,17 @@ function couleur(impact: string): string {
   return IMPACT_COULEURS[impact] ?? "#6B6A60";
 }
 
-/** Ajuste la vue pour contenir toutes les voies */
+/* ─── Composants carte ─── */
+
 function FitVoies({ voies, centre }: { voies: VoieLocalisee[]; centre?: [number, number] }) {
   const map = useMap();
   const prevKey = useRef("");
 
   useEffect(() => {
     if (voies.length === 0) return;
-
     const allPoints: [number, number][] = voies.flatMap((v) =>
-      v.segments.length > 0
-        ? v.segments.flat()
-        : [[v.lat, v.lng] as [number, number]],
+      v.segments.length > 0 ? v.segments.flat() : [[v.lat, v.lng] as [number, number]],
     );
-
     const key = allPoints.map(([a, b]) => `${a.toFixed(5)},${b.toFixed(5)}`).join("|");
     if (key === prevKey.current) return;
     prevKey.current = key;
@@ -72,7 +69,6 @@ function FitVoies({ voies, centre }: { voies: VoieLocalisee[]; centre?: [number,
   return null;
 }
 
-/** Centre la carte au montage */
 function InitView({ centre }: { centre: [number, number] }) {
   const map = useMap();
   const done = useRef(false);
@@ -85,12 +81,8 @@ function InitView({ centre }: { centre: [number, number] }) {
   return null;
 }
 
-/** Pause entre requêtes Nominatim (rate-limit 1 req/s) */
-function attendre(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+/* ─── Helpers ─── */
 
-/** Normalise pour comparaison */
 function normaliser(s: string): string {
   return s
     .toLowerCase()
@@ -101,6 +93,22 @@ function normaliser(s: string): string {
     .trim();
 }
 
+const STOP_WORDS = new Set([
+  "rue", "avenue", "av", "boulevard", "bd", "place", "pl", "allee",
+  "impasse", "chemin", "passage", "square", "cours", "route", "rte",
+  "du", "de", "la", "le", "les", "des", "l", "d", "au", "aux",
+  "et", "a", "en", "sur",
+]);
+
+/** Extrait les mots significatifs d'un nom de rue */
+function motsCles(nom: string): string[] {
+  return normaliser(nom).split(" ").filter((m) => m.length > 1 && !STOP_WORDS.has(m));
+}
+
+function escapeOverpass(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 interface GeoResult {
   label: string;
   lat: number;
@@ -108,9 +116,114 @@ interface GeoResult {
   segments: [number, number][][];
 }
 
-/**
- * Géocode via Nominatim avec polygon_geojson pour obtenir le tracé des rues.
- */
+/* ─── Géocodage Overpass (batch — tous les tronçons d'une rue) ─── */
+
+async function geocoderOverpassBatch(
+  voies: { nom: string }[],
+  communeNom: string | undefined,
+  signal: AbortSignal,
+): Promise<Map<string, GeoResult>> {
+  const results = new Map<string, GeoResult>();
+  if (voies.length === 0) return results;
+
+  try {
+    const communeEsc = communeNom ? escapeOverpass(communeNom) : "";
+    const areaLine = communeEsc
+      ? `area["name"="${communeEsc}"]["admin_level"~"^[78]$"]->.a;`
+      : "";
+    const inArea = communeEsc ? "(area.a)" : "";
+
+    // Construire les requêtes de voies
+    const wayQueries = voies
+      .map((v) => {
+        const mots = motsCles(v.nom);
+        const kw = mots.length > 0 ? mots.join(".*") : escapeOverpass(normaliser(v.nom));
+        return `  way["name"~"${escapeOverpass(kw)}",i]${inArea};`;
+      })
+      .join("\n");
+
+    const query = `[out:json][timeout:15];\n${areaLine}\n(\n${wayQueries}\n);\nout geom;`;
+
+    const resp = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: `data=${encodeURIComponent(query)}`,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      signal,
+    });
+
+    if (!resp.ok) return results;
+    const data = await resp.json();
+    if (!data.elements) return results;
+
+    // Grouper les ways par nom OSM
+    const waysByName = new Map<string, { lat: number; lon: number }[][]>();
+    for (const el of data.elements) {
+      if (el.type === "way" && el.tags?.name && el.geometry?.length > 1) {
+        const name = el.tags.name as string;
+        if (!waysByName.has(name)) waysByName.set(name, []);
+        waysByName.get(name)!.push(el.geometry);
+      }
+    }
+
+    // Associer chaque voie saisie au meilleur nom OSM
+    for (const v of voies) {
+      const inputMots = motsCles(v.nom);
+      const nomNorm = normaliser(v.nom);
+      let bestName: string | null = null;
+      let bestScore = 0;
+
+      for (const [osmName] of waysByName) {
+        const osmNorm = normaliser(osmName);
+        let score = 0;
+        if (osmNorm === nomNorm) {
+          score = 10;
+        } else if (osmNorm.includes(nomNorm) || nomNorm.includes(osmNorm)) {
+          score = 5;
+        } else {
+          const osmMots = motsCles(osmName);
+          const communs = inputMots.filter((m) => osmMots.some((om) => om.includes(m) || m.includes(om)));
+          score = communs.length > 0 ? communs.length * 2 : 0;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestName = osmName;
+        }
+      }
+
+      if (bestName && bestScore >= 2) {
+        const ways = waysByName.get(bestName)!;
+        const segments: [number, number][][] = ways.map((geom) =>
+          geom.map((p: { lat: number; lon: number }) => [p.lat, p.lon] as [number, number]),
+        );
+
+        let totalLat = 0;
+        let totalLng = 0;
+        let count = 0;
+        for (const seg of segments) {
+          for (const [lat, lng] of seg) {
+            totalLat += lat;
+            totalLng += lng;
+            count++;
+          }
+        }
+
+        results.set(v.nom, {
+          label: `${bestName}${communeNom ? `, ${communeNom}` : ""}`,
+          lat: totalLat / count,
+          lng: totalLng / count,
+          segments,
+        });
+      }
+    }
+
+    return results;
+  } catch {
+    return results;
+  }
+}
+
+/* ─── Géocodage Nominatim (tracé partiel — fallback) ─── */
+
 async function geocoderNominatim(
   nom: string,
   communeNom: string | undefined,
@@ -135,7 +248,6 @@ async function geocoderNominatim(
     const data = await resp.json();
     if (!data || data.length === 0) return null;
 
-    // Préférer les résultats de type "highway" (rues) avec la meilleure correspondance textuelle
     const nomNorm = normaliser(nom);
     let best = data[0];
     let bestScore = -1;
@@ -155,7 +267,6 @@ async function geocoderNominatim(
     const lng = parseFloat(best.lon);
     const label = (best.display_name ?? nom).split(",").slice(0, 3).join(",").trim();
 
-    // Extraire la géométrie
     if (best.geojson) {
       const geo = best.geojson;
       if (geo.type === "LineString" && geo.coordinates?.length > 1) {
@@ -173,16 +284,14 @@ async function geocoderNominatim(
       }
     }
 
-    // Point seul (pas de tracé linéaire)
     return { label, lat, lng, segments: [] };
   } catch {
     return null;
   }
 }
 
-/**
- * Fallback : API Adresse (api-adresse.data.gouv.fr) — point seul.
- */
+/* ─── Géocodage api-adresse (point seul — dernier recours) ─── */
+
 async function geocoderApiAdresse(
   nom: string,
   codePostal: string | undefined,
@@ -214,23 +323,19 @@ async function geocoderApiAdresse(
     if (best.properties.score < 0.15) return null;
 
     const [lng, lat] = best.geometry.coordinates as [number, number];
-    return {
-      label: best.properties.label ?? nom,
-      lat,
-      lng,
-      segments: [],
-    };
+    return { label: best.properties.label ?? nom, lat, lng, segments: [] };
   } catch {
     return null;
   }
 }
+
+/* ─── Composant principal ─── */
 
 export default function CarteApercu({ centre, communeCodePostal, communeNom, voies }: Props) {
   const [localisees, setLocalisees] = useState<VoieLocalisee[]>([]);
   const [enChargement, setEnChargement] = useState(false);
   const cacheRef = useRef<Map<string, GeoResult>>(new Map());
 
-  // Clé stable pour détecter un vrai changement de contenu
   const voiesKey = useMemo(
     () => voies.map((v) => `${v.nom}|${v.impact}`).join(";;"),
     [voies],
@@ -239,7 +344,6 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
   useEffect(() => {
     const voiesValides = voies.filter((v) => v.nom.trim().length >= 3);
 
-    // Résultats en cache
     const fromCache: VoieLocalisee[] = [];
     const aGeocoder: { nom: string; impact: CodeImpact }[] = [];
 
@@ -247,12 +351,8 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
       const cached = cacheRef.current.get(v.nom);
       if (cached) {
         fromCache.push({
-          nom: v.nom,
-          label: cached.label,
-          impact: v.impact,
-          lat: cached.lat,
-          lng: cached.lng,
-          segments: cached.segments,
+          nom: v.nom, label: cached.label, impact: v.impact,
+          lat: cached.lat, lng: cached.lng, segments: cached.segments,
         });
       } else {
         aGeocoder.push({ nom: v.nom, impact: v.impact });
@@ -266,37 +366,45 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
       return;
     }
 
-    // Debounce : attendre 800ms après la dernière frappe
     setEnChargement(true);
     const controller = new AbortController();
 
     const debounceTimer = setTimeout(async () => {
-      let reqIndex = 0;
+      // 1) Overpass batch — tracé complet de chaque rue
+      const overpassResults = await geocoderOverpassBatch(
+        aGeocoder,
+        communeNom,
+        controller.signal,
+      );
+
+      if (controller.signal.aborted) return;
+
+      // Appliquer les résultats Overpass, noter les voies restantes
+      const restant: typeof aGeocoder = [];
       for (const { nom, impact } of aGeocoder) {
+        const r = overpassResults.get(nom);
+        if (r) {
+          cacheRef.current.set(nom, r);
+          setLocalisees((prev) => {
+            const sans = prev.filter((v) => v.nom !== nom);
+            return [...sans, { nom, label: r.label, impact, lat: r.lat, lng: r.lng, segments: r.segments }];
+          });
+        } else {
+          restant.push({ nom, impact });
+        }
+      }
+
+      // 2) Nominatim puis api-adresse pour les voies non trouvées
+      for (let ri = 0; ri < restant.length; ri++) {
+        const { nom, impact } = restant[ri]!;
         if (controller.signal.aborted) break;
 
-        // Respect rate-limit Nominatim : 1.1s entre chaque requête
-        if (reqIndex > 0) await attendre(1100);
-        reqIndex++;
+        // Rate-limit Nominatim : 1.1s entre requêtes
+        if (ri > 0) await new Promise((r) => setTimeout(r, 1100));
 
-        // Vérifier le cache
-        const cached = cacheRef.current.get(nom);
-        if (cached) {
-          setLocalisees((prev) => {
-            if (prev.some((v) => v.nom === nom)) return prev;
-            return [
-              ...prev,
-              { nom, label: cached.label, impact, lat: cached.lat, lng: cached.lng, segments: cached.segments },
-            ];
-          });
-          continue;
-        }
-
-        // 1) Essayer Nominatim (tracé des rues)
         let result = await geocoderNominatim(nom, communeNom, controller.signal);
         if (controller.signal.aborted) break;
 
-        // 2) Fallback vers API Adresse si Nominatim échoue
         if (!result) {
           result = await geocoderApiAdresse(nom, communeCodePostal, communeNom, controller.signal);
           if (controller.signal.aborted) break;
@@ -307,10 +415,7 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
           cacheRef.current.set(nom, r);
           setLocalisees((prev) => {
             const sans = prev.filter((v) => v.nom !== nom);
-            return [
-              ...sans,
-              { nom, label: r.label, impact, lat: r.lat, lng: r.lng, segments: r.segments },
-            ];
+            return [...sans, { nom, label: r.label, impact, lat: r.lat, lng: r.lng, segments: r.segments }];
           });
         }
       }
@@ -329,23 +434,15 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
 
   return (
     <div style={{
-      borderRadius: 8,
-      overflow: "hidden",
-      border: "1px solid #E4E1D6",
-      background: "#F4F2EC",
-      height: "100%",
-      minHeight: 340,
-      display: "flex",
-      flexDirection: "column",
+      borderRadius: 8, overflow: "hidden", border: "1px solid #E4E1D6",
+      background: "#F4F2EC", height: "100%", minHeight: 340,
+      display: "flex", flexDirection: "column",
     }}>
       {/* Mini header */}
       <div style={{
-        padding: "8px 12px",
-        background: "#FFFFFF",
+        padding: "8px 12px", background: "#FFFFFF",
         borderBottom: "1px solid #E4E1D6",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <MapPin size={12} color="#1E3A5F" />
@@ -383,7 +480,6 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
 
           {localisees.map((v, i) =>
             v.segments.length > 0 ? (
-              /* ─── Polyline : rue surlignée ─── */
               <Fragment key={`voie_${v.nom}_${i}`}>
                 {v.segments.map((seg, si) => (
                   <Fragment key={`seg_${i}_${si}`}>
@@ -432,7 +528,6 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
                 ))}
               </Fragment>
             ) : (
-              /* ─── Fallback : point (cercle) ─── */
               <CircleMarker
                 key={`point_${v.nom}_${i}`}
                 center={[v.lat, v.lng]}
@@ -469,15 +564,9 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
         {/* Placeholder quand aucune voie */}
         {voies.filter((v) => v.nom.trim().length >= 3).length === 0 && !enChargement && (
           <div style={{
-            position: "absolute",
-            bottom: 12,
-            left: 12,
-            right: 12,
-            background: "rgba(255,255,255,0.92)",
-            borderRadius: 6,
-            padding: "10px 14px",
-            backdropFilter: "blur(4px)",
-            textAlign: "center",
+            position: "absolute", bottom: 12, left: 12, right: 12,
+            background: "rgba(255,255,255,0.92)", borderRadius: 6,
+            padding: "10px 14px", backdropFilter: "blur(4px)", textAlign: "center",
           }}>
             <p style={{ fontSize: 11, color: "#6B6A60", margin: 0 }}>
               Ajoutez des voies impactees dans le formulaire pour les voir apparaitre sur la carte.
@@ -488,15 +577,10 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
         {/* Légende */}
         {localisees.length > 0 && (
           <div style={{
-            position: "absolute",
-            bottom: 8,
-            left: 8,
-            background: "rgba(255,255,255,0.92)",
-            borderRadius: 6,
-            padding: "6px 10px",
-            backdropFilter: "blur(4px)",
-            zIndex: 400,
-            maxWidth: "70%",
+            position: "absolute", bottom: 8, left: 8,
+            background: "rgba(255,255,255,0.92)", borderRadius: 6,
+            padding: "6px 10px", backdropFilter: "blur(4px)",
+            zIndex: 400, maxWidth: "70%",
           }}>
             {localisees.map((v, i) => {
               const ti = TYPES_IMPACT.find((t) => t.code === v.impact);
