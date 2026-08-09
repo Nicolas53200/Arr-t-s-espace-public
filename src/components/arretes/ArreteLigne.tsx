@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, AlertOctagon, GitBranch, Archive, ChevronUp, ChevronDown, Edit2, Trash2, FileText } from "lucide-react";
+import { CheckCircle2, AlertOctagon, GitBranch, Archive, ChevronUp, ChevronDown, Edit2, Trash2, FileText, Copy } from "lucide-react";
 import { estExpire } from "@/lib/arrete";
 import { fmtDate } from "@/lib/date";
 import { couleurStatut, labelStatut } from "@/lib/workflow";
@@ -13,11 +13,12 @@ interface ArreteLigneProps {
   arrete: Arrete;
   onModifier?: () => void;
   onAbroger?: () => void;
+  onDupliquer?: () => void;
   compact?: boolean;
   archive?: boolean;
 }
 
-export default function ArreteLigne({ arrete, onModifier, onAbroger, compact, archive }: ArreteLigneProps) {
+export default function ArreteLigne({ arrete, onModifier, onAbroger, onDupliquer, compact, archive }: ArreteLigneProps) {
   const [ouvert, setOuvert] = useState(false);
   const { references } = useReferences();
   const { tenant } = useTenant();
@@ -48,6 +49,7 @@ export default function ArreteLigne({ arrete, onModifier, onAbroger, compact, ar
           <div style={{ display: "flex", gap: 5, flexShrink: 0, flexWrap: isMobile ? "wrap" : "nowrap" }}>
             {arrete.versions.length > 0 && <button className="btn-secondary" onClick={() => setOuvert(o => !o)} style={{ padding: "4px 9px", fontSize: 10 }}><GitBranch size={10} />{isMobile ? "" : `${arrete.versions.length}v`} {ouvert ? <ChevronUp size={10} /> : <ChevronDown size={10} />}</button>}
             <button className="btn-secondary" onClick={() => ouvrirApercuPdf(arrete, references, tenant.nom, tenant.code_postal, tenant)} style={{ padding: "4px 9px", fontSize: 10 }}><FileText size={10} />{isMobile ? "" : "PDF"}</button>
+            {onDupliquer && <button className="btn-secondary" onClick={onDupliquer} style={{ padding: "4px 9px", fontSize: 10 }}><Copy size={10} />{isMobile ? "" : "Dupliquer"}</button>}
             {peutModifier && <button className="btn-secondary" onClick={onModifier} style={{ padding: "4px 9px", fontSize: 10 }}><Edit2 size={10} />{isMobile ? "" : "Modifier"}</button>}
             {peutModifier && <button className="btn-danger" onClick={onAbroger} style={{ padding: "4px 9px", fontSize: 10 }}><Trash2 size={10} />{isMobile ? "" : "Abroger"}</button>}
           </div>

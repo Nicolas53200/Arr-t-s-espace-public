@@ -11,6 +11,8 @@ import {
 } from "@/lib/workflow";
 import { useAuth } from "@/contexts/AuthContext";
 import { useArretes } from "@/contexts/ArretesContext";
+import { useNotifications } from "@/contexts/NotificationsContext";
+import { useAudit } from "@/contexts/AuditContext";
 
 interface WorkflowPanelProps {
   arrete: Arrete;
@@ -29,6 +31,8 @@ function iconeTransition(to: StatutArrete) {
 export default function WorkflowPanel({ arrete }: WorkflowPanelProps) {
   const { user } = useAuth();
   const { dispatch } = useArretes();
+  const { dispatch: notifDispatch } = useNotifications();
+  const { logAction } = useAudit();
   const [modalOuverte, setModalOuverte] = useState(false);
   const [transitionCible, setTransitionCible] = useState<StatutArrete | null>(null);
   const [commentaire, setCommentaire] = useState("");
@@ -54,6 +58,30 @@ export default function WorkflowPanel({ arrete }: WorkflowPanelProps) {
       commentaire: commentaire.trim() || undefined,
       auteur: user.nom,
     });
+
+    // Notification automatique
+    const label = labelTransition(arrete.statut, transitionCible);
+    notifDispatch({
+      type: "ADD",
+      notification: {
+        id: `wf-${arrete.id}-${Date.now()}`,
+        type: "workflow",
+        priorite: transitionCible === "publie" ? "haute" : "normale",
+        titre: `${label} — ${arrete.numero}`,
+        message: `L'arrete "${arrete.titre}" est passe de ${labelStatut(arrete.statut)} a ${labelStatut(transitionCible)} par ${user.nom}.`,
+        date: new Date().toISOString(),
+        lue: false,
+        lien: "/actifs",
+        arreteId: arrete.id,
+      },
+    });
+
+    // Log audit
+    logAction("transition", "arrete", arrete.id,
+      `${label} — ${arrete.numero} (${labelStatut(arrete.statut)} → ${labelStatut(transitionCible)})`,
+      { ancien_statut: arrete.statut, nouveau_statut: transitionCible },
+    );
+
     setModalOuverte(false);
     setTransitionCible(null);
     setCommentaire("");

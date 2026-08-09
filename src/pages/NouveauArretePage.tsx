@@ -10,6 +10,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAudit } from "@/contexts/AuditContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import { ouvrirApercuPdf } from "@/lib/pdf-client";
 import { AUJOURD_HUI } from "@/config/constants";
 import { TYPES_ARRETE } from "@/data/types-arrete";
@@ -57,6 +58,7 @@ export default function NouveauArretePage() {
   const toast = useToast();
   const { logAction } = useAudit();
   const { user } = useAuth();
+  const { dispatch: notifDispatch } = useNotifications();
   const COMMUNES = useMemo(() => getCommunes(), []);
 
   const arreteExistant = id ? arretes.find((a) => a.id === id) : null;
@@ -402,6 +404,26 @@ export default function NouveauArretePage() {
       setDernierArrete({ numero: num, mode: "cree", titre: titreArrete || typeArrete!.label });
       logAction("creation", "arrete", arreteId, `Création de l'arrêté ${num} — ${titreArrete || typeArrete!.label}`);
     }
+    // Notification workflow
+    const titreNotif = arreteExistant
+      ? `Arrete modifie — ${arreteExistant.numero}`
+      : `Nouvel arrete publie — ${num}`;
+    notifDispatch({
+      type: "ADD",
+      notification: {
+        id: `wf-pub-${Date.now()}`,
+        type: "workflow",
+        priorite: "haute",
+        titre: titreNotif,
+        message: arreteExistant
+          ? `L'arrete "${titreArrete || arreteExistant.titre}" a ete modifie par ${nomAuteur}.`
+          : `L'arrete "${titreArrete || typeArrete!.label}" a ete publie par ${nomAuteur}.`,
+        date: new Date().toISOString(),
+        lue: false,
+        lien: "/actifs",
+      },
+    });
+
     setPublie(true);
     setSauvegarde(true);
     toast.success("Arrete publie avec succes");

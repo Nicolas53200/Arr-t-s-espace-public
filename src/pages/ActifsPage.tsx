@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Edit2, Download, Filter } from "lucide-react";
+import { Plus, Search, Edit2, Download, Filter, Copy } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useToast } from "@/contexts/ToastContext";
+import { useAudit } from "@/contexts/AuditContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { filtrerArretes, genNum } from "@/lib/arrete";
 import { AUJOURD_HUI } from "@/config/constants";
 import ArreteLigne from "@/components/arretes/ArreteLigne";
@@ -28,6 +30,8 @@ export default function ActifsPage() {
   const navigate = useNavigate();
   const { actifs, dispatch, loading } = useArretes();
   const toast = useToast();
+  const { logAction } = useAudit();
+  const { user } = useAuth();
   const [recherche, setRecherche] = useState("");
   const [filtreType, setFiltreType] = useState<CodeTypeArrete | "">("");
   const [filtreStatut, setFiltreStatut] = useState<StatutArrete | "">("");
@@ -49,6 +53,32 @@ export default function ActifsPage() {
     setNextIdx((n) => n + 1);
     setModalAction(null);
     toast.success("Arrete abroge avec succes");
+  }
+
+  function dupliquerArrete(a: Arrete) {
+    const suffixe = TYPES_ARRETE.find((t) => t.code === a.type_code)?.suffixe ?? "GEN";
+    const num = genNum(suffixe, nextIdx);
+    const nomAuteur = user?.nom ?? "Agent";
+    const nouvelId = `a${Date.now()}`;
+    const copie: Arrete = {
+      ...a,
+      id: nouvelId,
+      numero: num,
+      titre: `${a.titre} (copie)`,
+      statut: "brouillon",
+      cree_par: nomAuteur,
+      date_creation: AUJOURD_HUI.toISOString().split("T")[0]!,
+      versions: [],
+      arrete_abrogation: null,
+      commentaires: [],
+      valideur: undefined,
+      date_validation: undefined,
+    };
+    dispatch({ type: "ADD", arrete: copie });
+    setNextIdx((n) => n + 1);
+    logAction("creation", "arrete", nouvelId, `Duplication de ${a.numero} → ${num} — ${copie.titre}`);
+    setModalAction(null);
+    toast.success(`Arrete duplique : ${num}`);
   }
 
   function reinitialiserFiltres() {
@@ -76,7 +106,7 @@ export default function ActifsPage() {
       <div style={{ display: "flex", gap: 8, marginBottom: showFiltres ? 10 : 14, alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#A6A399" }} aria-hidden="true" />
-          <input type="search" placeholder="Rechercher par titre, numero, type ou voie..." value={recherche} onChange={(e) => setRecherche(e.target.value)} style={{ paddingLeft: 30 }} aria-label="Rechercher dans les arretes actifs" />
+          <input type="search" placeholder="Rechercher par titre, numero, type, voie, commune, auteur..." value={recherche} onChange={(e) => setRecherche(e.target.value)} style={{ paddingLeft: 30 }} aria-label="Rechercher dans les arretes actifs" />
         </div>
         <button
           className={`btn-secondary${showFiltres ? "" : ""}`}
@@ -125,7 +155,8 @@ export default function ActifsPage() {
           <div key={a.id} role="listitem">
             <ArreteLigne arrete={a}
               onModifier={() => setModalAction({ type: "modifier", arrete: a })}
-              onAbroger={() => setModalAction({ type: "abroger", arrete: a })} />
+              onAbroger={() => setModalAction({ type: "abroger", arrete: a })}
+              onDupliquer={() => setModalAction({ type: "dupliquer", arrete: a })} />
           </div>
         ))}
         {liste.length === 0 && <EmptyState texte={filtresActifs > 0 || recherche ? "Aucun arrete ne correspond aux filtres." : "Aucun arrete actif."} />}
@@ -139,6 +170,12 @@ export default function ActifsPage() {
       )}
       {modalAction?.type === "abroger" && (
         <ModalAbrogation arrete={modalAction.arrete} onOk={(m) => abrogerArrete(modalAction.arrete, m)} onCancel={() => setModalAction(null)} />
+      )}
+      {modalAction?.type === "dupliquer" && (
+        <ModalConfirm titre="Dupliquer" message={`Creer une copie brouillon de ${modalAction.arrete.numero} — "${modalAction.arrete.titre}" ?`}
+          icone={<Copy size={19} color="#7C3AED" />} couleurIcone="#EDE9FE" labelOk="Dupliquer" couleurOk="#7C3AED"
+          onOk={() => dupliquerArrete(modalAction.arrete)}
+          onCancel={() => setModalAction(null)} />
       )}
     </div>
   );
