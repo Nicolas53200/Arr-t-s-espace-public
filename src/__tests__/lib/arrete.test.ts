@@ -62,8 +62,8 @@ describe("genNum", () => {
 
 describe("filtrerArretes", () => {
   const liste = [
-    makeArrete({ numero: "AR-2026-0001-CIR", titre: "Fermeture Rue X" }),
-    makeArrete({ numero: "AR-2026-0002-TRX", titre: "Travaux Avenue Y", type_label: "Travaux" }),
+    makeArrete({ numero: "AR-2026-0001-CIR", titre: "Fermeture Rue X", commune: "Vannes", cree_par: "M. Lefevre" }),
+    makeArrete({ numero: "AR-2026-0002-TRX", titre: "Travaux Avenue Y", type_label: "Travaux", commune: "Lorient", cree_par: "Mme Bernard" }),
   ];
 
   it("filtre par numéro", () => {
@@ -80,5 +80,18 @@ describe("filtrerArretes", () => {
 
   it("retourne rien si aucun résultat", () => {
     expect(filtrerArretes(liste, "zzzzz")).toHaveLength(0);
+  });
+
+  it("filtre par commune", () => {
+    expect(filtrerArretes(liste, "vannes")).toHaveLength(1);
+  });
+
+  it("filtre par auteur", () => {
+    expect(filtrerArretes(liste, "bernard")).toHaveLength(1);
+  });
+
+  it("filtre multi-mots (titre + commune)", () => {
+    expect(filtrerArretes(liste, "travaux lorient")).toHaveLength(1);
+    expect(filtrerArretes(liste, "travaux vannes")).toHaveLength(0);
   });
 });
