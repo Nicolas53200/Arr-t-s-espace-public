@@ -274,6 +274,9 @@ export function ouvrirApercuPdf(
 
   const titreMaire = tenant?.titre_maire ?? "Le Maire";
   const nomMaire = tenant?.nom_maire ?? arrete.cree_par;
+  const tamponHtml = tenant?.tampon
+    ? `<img src="${tenant.tampon}" alt="Cachet officiel" class="tampon-mairie" />`
+    : "";
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -422,7 +425,6 @@ export function ouvrirApercuPdf(
     margin: 2pt 0;
   }
   .signature {
-    margin-top: 24pt;
     text-align: right;
   }
   .signature .lieu-date {
@@ -447,6 +449,20 @@ export function ouvrirApercuPdf(
     max-height: 60pt;
     margin: 8pt 0;
     opacity: 0.85;
+  }
+  .signature-bloc {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    gap: 20pt;
+    margin-top: 24pt;
+  }
+  .tampon-mairie {
+    max-height: 90pt;
+    max-width: 90pt;
+    opacity: 0.75;
+    object-fit: contain;
+    margin-top: 8pt;
   }
   .pieces-jointes {
     margin-top: 12pt;
@@ -553,11 +569,14 @@ export function ouvrirApercuPdf(
 
   <hr class="separator">
 
-  <div class="signature">
-    <p class="lieu-date">Fait a ${escapeHtml(commune)}, le ${formatDateFr(arrete.date_creation)}</p>
-    <p class="titre-signataire">${escapeHtml(titreMaire)}</p>
-    ${arrete.signature ? `<img src="${arrete.signature}" alt="Signature" class="signature-image" />` : ""}
-    <p class="auteur">${escapeHtml(nomMaire)}</p>
+  <div class="signature-bloc">
+    ${tamponHtml}
+    <div class="signature">
+      <p class="lieu-date">Fait a ${escapeHtml(commune)}, le ${formatDateFr(arrete.date_creation)}</p>
+      <p class="titre-signataire">${escapeHtml(titreMaire)}</p>
+      ${arrete.signature ? `<img src="${arrete.signature}" alt="Signature" class="signature-image" />` : ""}
+      <p class="auteur">${escapeHtml(nomMaire)}</p>
+    </div>
   </div>
 
   ${arrete.pieces_jointes && arrete.pieces_jointes.length > 0 ? `
