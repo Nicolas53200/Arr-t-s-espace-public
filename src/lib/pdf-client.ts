@@ -79,14 +79,19 @@ function buildAnnexeHtml(troncons: Troncon[]): string {
   </div>`;
 }
 
-function formatDateFr(d: string): string {
+function formatDateFr(d: string, avecHeure = false): string {
   if (!d) return "—";
   try {
-    return new Date(d).toLocaleDateString("fr-FR", {
+    const date = new Date(d);
+    const partieDate = date.toLocaleDateString("fr-FR", {
       day: "2-digit",
       month: "long",
       year: "numeric",
     });
+    if (!avecHeure) return partieDate;
+    const heures = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    return `${partieDate} a ${heures}h${minutes}`;
   } catch {
     return d;
   }
@@ -129,7 +134,7 @@ function buildArticlesHtml(
   // Article — Période d'application
   html += `<div class="article">
     <p class="article-titre">Article ${articleNum} — Periode d'application</p>
-    <p class="article-contenu">Du ${formatDateFr(arrete.date_debut)} au ${formatDateFr(arrete.date_fin)}.</p>
+    <p class="article-contenu">Du ${formatDateFr(arrete.date_debut, true)} au ${formatDateFr(arrete.date_fin, true)}.</p>
   </div>\n`;
   articleNum++;
 
