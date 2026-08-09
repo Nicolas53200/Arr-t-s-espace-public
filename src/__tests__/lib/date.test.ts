@@ -39,14 +39,15 @@ describe("isFutur", () => {
 
 describe("isEnCours", () => {
   it("détecte une période en cours", () => {
-    expect(isEnCours("2026-06-01", "2026-07-01")).toBe(true);
+    // Utiliser des dates qui encadrent largement la date du jour
+    expect(isEnCours("2026-01-01", "2027-12-31")).toBe(true);
   });
 
   it("rejette une période entièrement passée", () => {
-    expect(isEnCours("2026-01-01", "2026-02-01")).toBe(false);
+    expect(isEnCours("2024-01-01", "2024-02-01")).toBe(false);
   });
 
   it("rejette une période entièrement future", () => {
-    expect(isEnCours("2026-09-01", "2026-10-01")).toBe(false);
+    expect(isEnCours("2028-09-01", "2028-10-01")).toBe(false);
   });
 });
