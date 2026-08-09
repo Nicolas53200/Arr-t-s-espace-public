@@ -17,7 +17,8 @@ describe("NotificationsPage", () => {
     renderWithProviders(<NotificationsPage />);
     expect(screen.getByText("Non lues")).toBeDefined();
     expect(screen.getByText("Toutes")).toBeDefined();
-    expect(screen.getByText("Expirations")).toBeDefined();
+    // "Expirations" apparait dans l'onglet et dans le bilan
+    expect(screen.getAllByText("Expirations").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Workflow")).toBeDefined();
   });
 
