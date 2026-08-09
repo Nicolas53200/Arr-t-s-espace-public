@@ -19,6 +19,8 @@ export type {
   CategorieRef,
   JourSemaine,
   Recurrence,
+  ModeleArrete,
+  PieceJointe,
 } from "./domain";
 
 export type { Role, Permission, User, TenantInfo } from "./auth";
