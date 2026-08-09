@@ -335,6 +335,87 @@ async function calculerDeviation(troncons: Troncon[]): Promise<[number, number][
   return null;
 }
 
+/**
+ * Trace une rue via Overpass API (tous les tronçons) puis fallback Nominatim.
+ * Retourne un tableau de segments [[lat,lng][], …] ou null.
+ */
+async function tracerRueOverpass(
+  nomRue: string,
+  communeNom: string | undefined,
+): Promise<{ segments: [number, number][][]; label: string; lat: number; lng: number } | null> {
+  // Helpers locaux
+  const normaliser = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  const STOP = new Set(["rue","avenue","av","boulevard","bd","place","pl","allee","impasse","chemin","passage","square","cours","route","rte","du","de","la","le","les","des","l","d","au","aux","et","a","en","sur"]);
+  const motsCles = (nom: string) => normaliser(nom).split(" ").filter((m) => m.length > 1 && !STOP.has(m));
+  const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+  try {
+    const communeEsc = communeNom ? esc(communeNom) : "";
+    const areaLine = communeEsc
+      ? `area["name"~"^${communeEsc}$",i]["admin_level"~"^[78]$"]->.a;`
+      : "";
+    const inArea = communeEsc ? "(area.a)" : "";
+    const mots = motsCles(nomRue);
+    const kw = mots.length > 0 ? mots.join(".*") : esc(normaliser(nomRue));
+
+    const query = `[out:json][timeout:15];\n${areaLine}\n(\n  way["name"~"${esc(kw)}",i]${inArea};\n);\nout geom;`;
+    const resp = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: `data=${encodeURIComponent(query)}`,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (!data.elements || data.elements.length === 0) return null;
+
+    // Grouper par nom OSM, trouver le meilleur match
+    const waysByName = new Map<string, { lat: number; lon: number }[][]>();
+    for (const el of data.elements) {
+      if (el.type === "way" && el.tags?.name && el.geometry?.length > 1) {
+        const name = el.tags.name as string;
+        if (!waysByName.has(name)) waysByName.set(name, []);
+        waysByName.get(name)!.push(el.geometry);
+      }
+    }
+
+    const inputMots = motsCles(nomRue);
+    const nomNorm = normaliser(nomRue);
+    let bestName: string | null = null;
+    let bestScore = 0;
+    for (const [osmName] of waysByName) {
+      const osmNorm = normaliser(osmName);
+      let score = 0;
+      if (osmNorm === nomNorm) score = 10;
+      else if (osmNorm.includes(nomNorm) || nomNorm.includes(osmNorm)) score = 5;
+      else {
+        const osmMots = motsCles(osmName);
+        const communs = inputMots.filter((m) => osmMots.some((om) => om.includes(m) || m.includes(om)));
+        score = communs.length > 0 ? communs.length * 2 : 0;
+      }
+      if (score > bestScore) { bestScore = score; bestName = osmName; }
+    }
+
+    if (!bestName || bestScore < 2) return null;
+
+    const ways = waysByName.get(bestName)!;
+    const segments: [number, number][][] = ways.map((geom) =>
+      geom.map((p: { lat: number; lon: number }) => [p.lat, p.lon] as [number, number]),
+    );
+    let totalLat = 0, totalLng = 0, count = 0;
+    for (const seg of segments) for (const [lat, lng] of seg) { totalLat += lat; totalLng += lng; count++; }
+
+    return {
+      segments,
+      label: bestName,
+      lat: totalLat / count,
+      lng: totalLng / count,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function SearchBarAuto({ onSelect, onAutoTrace, codePostal, communeNom }: {
   onSelect: (lat: number, lng: number) => void;
   onAutoTrace: (coords: [number, number][], label: string) => void;
@@ -349,20 +430,32 @@ function SearchBarAuto({ onSelect, onAutoTrace, codePostal, communeNom }: {
   const [autoLoading, setAutoLoading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Utilise l'API adresse quand on a un code postal, sinon Nominatim
-  const useApiAdresse = !!codePostal;
-
   function doSearch(q: string) {
     if (q.length < 2) { setResults([]); setResultatsAdresse([]); setOpen(false); return; }
     setSearching(true);
 
-    if (useApiAdresse) {
-      rechercherRues(q, codePostal!, 6)
-        .then((data) => { setResultatsAdresse(data); setResults([]); setOpen(data.length > 0); })
-        .catch(() => setResultatsAdresse([]))
-        .finally(() => setSearching(false));
+    if (codePostal) {
+      // API Adresse (scopée par code postal) + fallback Nominatim si 0 résultats
+      rechercherRues(q, codePostal, 6)
+        .then((data) => {
+          if (data.length > 0) {
+            setResultatsAdresse(data); setResults([]); setOpen(true);
+            setSearching(false);
+          } else {
+            // Fallback Nominatim avec nom de commune
+            const nomQuery = communeNom ? `${q}, ${communeNom}, France` : `${q}, France`;
+            return fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&polygon_geojson=1&q=${encodeURIComponent(nomQuery)}`)
+              .then((r) => r.json())
+              .then((d: NominatimResult[]) => {
+                setResults(d); setResultatsAdresse([]); setOpen(d.length > 0);
+                setSearching(false);
+              });
+          }
+        })
+        .catch(() => { setResultatsAdresse([]); setSearching(false); });
     } else {
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&polygon_geojson=1&q=${encodeURIComponent(q + ", France")}`)
+      const nomQuery = communeNom ? `${q}, ${communeNom}, France` : `${q}, France`;
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&polygon_geojson=1&q=${encodeURIComponent(nomQuery)}`)
         .then((r) => r.json())
         .then((data: NominatimResult[]) => { setResults(data); setResultatsAdresse([]); setOpen(data.length > 0); })
         .catch(() => setResults([]))
@@ -382,61 +475,62 @@ function SearchBarAuto({ onSelect, onAutoTrace, codePostal, communeNom }: {
     setOpen(false);
   }
 
-  function pickAutoTrace(r: NominatimResult) {
-    const label = r.display_name.split(",")[0] ?? "Rue";
+  /** Trace via Overpass, fallback Nominatim */
+  async function traceEtCentre(nomRue: string, latFallback: number, lngFallback: number, geojsonFallback?: NominatimResult["geojson"]) {
     setAutoLoading(true);
+    setOpen(false);
+    setQuery(nomRue.split(",")[0] ?? nomRue);
 
-    const coords = extractLineCoords(r.geojson);
-    if (coords && coords.length >= 2) {
-      onAutoTrace(coords, label);
-      onSelect(parseFloat(r.lat), parseFloat(r.lon));
-      setQuery(label);
-      setOpen(false);
+    // 1) Overpass — tracé complet
+    const overpass = await tracerRueOverpass(nomRue, communeNom);
+    if (overpass) {
+      // Ajouter chaque segment comme tronçon
+      const allCoords: [number, number][] = overpass.segments.flat();
+      onAutoTrace(allCoords, overpass.label);
+      onSelect(overpass.lat, overpass.lng);
       setAutoLoading(false);
       return;
     }
 
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(r.display_name)}`)
-      .then((res) => res.json())
-      .then((data: NominatimResult[]) => {
-        if (data[0]?.geojson) {
-          const detailCoords = extractLineCoords(data[0].geojson);
-          if (detailCoords && detailCoords.length >= 2) {
-            onAutoTrace(detailCoords, label);
-            onSelect(parseFloat(r.lat), parseFloat(r.lon));
-          } else {
-            onSelect(parseFloat(r.lat), parseFloat(r.lon));
-          }
-        } else {
-          onSelect(parseFloat(r.lat), parseFloat(r.lon));
+    // 2) Nominatim geojson déjà présent
+    if (geojsonFallback) {
+      const coords = extractLineCoords(geojsonFallback);
+      if (coords && coords.length >= 2) {
+        onAutoTrace(coords, nomRue);
+        onSelect(latFallback, lngFallback);
+        setAutoLoading(false);
+        return;
+      }
+    }
+
+    // 3) Nominatim détaillé
+    try {
+      const searchQ = communeNom ? `${nomRue}, ${communeNom}, France` : `${nomRue}, France`;
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(searchQ)}`);
+      const data: NominatimResult[] = await resp.json();
+      if (data[0]?.geojson) {
+        const coords = extractLineCoords(data[0].geojson);
+        if (coords && coords.length >= 2) {
+          onAutoTrace(coords, nomRue);
+          onSelect(parseFloat(data[0].lat), parseFloat(data[0].lon));
+          setAutoLoading(false);
+          return;
         }
-      })
-      .catch(() => onSelect(parseFloat(r.lat), parseFloat(r.lon)))
-      .finally(() => { setAutoLoading(false); setQuery(label); setOpen(false); });
+      }
+    } catch { /* ignore */ }
+
+    // 4) Aucun tracé → centrer seulement
+    onSelect(latFallback, lngFallback);
+    setAutoLoading(false);
   }
 
-  /** Sélection d'un résultat de l'API adresse → auto-trace via Nominatim pour le tracé géo */
+  function pickAutoTrace(r: NominatimResult) {
+    const label = r.display_name.split(",")[0] ?? "Rue";
+    traceEtCentre(label, parseFloat(r.lat), parseFloat(r.lon), r.geojson);
+  }
+
   function pickAdresseResult(r: ResultatGeocodage) {
-    const label = r.nom;
-    setAutoLoading(true);
-
-    // Centrer sur la rue
-    onSelect(r.lat, r.lng);
-
-    // Chercher le tracé via Nominatim (l'API adresse ne donne que le point central)
-    const searchQuery = `${r.nom}, ${r.commune}, France`;
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(searchQuery)}`)
-      .then((res) => res.json())
-      .then((data: NominatimResult[]) => {
-        if (data[0]?.geojson) {
-          const coords = extractLineCoords(data[0].geojson);
-          if (coords && coords.length >= 2) {
-            onAutoTrace(coords, label);
-          }
-        }
-      })
-      .catch(() => {})
-      .finally(() => { setAutoLoading(false); setQuery(label); setOpen(false); });
+    traceEtCentre(r.nom, r.lat, r.lng);
   }
 
   const placeholder = communeNom
@@ -675,14 +769,44 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
     if (rues.length === 0) return;
     initialTraceDone.current = true;
 
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    rues.forEach((rue, i) => {
-      const timer = setTimeout(() => {
-        const searchQuery = communeNom ? `${rue.nom}, ${communeNom}, France` : `${rue.nom}, France`;
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(searchQuery)}`)
-          .then((r) => r.json())
-          .then((data: NominatimResult[]) => {
-            if (!data[0]) return;
+    let cancelled = false;
+
+    (async () => {
+      for (let i = 0; i < rues.length; i++) {
+        if (cancelled) break;
+        const rue = rues[i]!;
+
+        // 1) Overpass — tracé complet
+        const overpass = await tracerRueOverpass(rue.nom, communeNom);
+        if (cancelled) break;
+
+        if (overpass) {
+          const allCoords: [number, number][] = overpass.segments.flat();
+          const t: Troncon = {
+            voie_id: `auto_${Date.now()}_${i}`,
+            impact: rue.impact,
+            origine: "auto",
+            coordonnees: allCoords,
+            geometrie_type: "LineString",
+            label: overpass.label,
+            segment_debut: rue.touteRue ? "" : rue.debut,
+            segment_fin: rue.touteRue ? "" : rue.fin,
+          };
+          onAdd(t);
+          if (i === 0) setSearchTarget([overpass.lat, overpass.lng]);
+          continue;
+        }
+
+        // 2) Nominatim fallback (avec délai rate-limit)
+        if (i > 0) await new Promise((r) => setTimeout(r, 1100));
+        if (cancelled) break;
+
+        try {
+          const searchQuery = communeNom ? `${rue.nom}, ${communeNom}, France` : `${rue.nom}, France`;
+          const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(searchQuery)}`);
+          const data: NominatimResult[] = await resp.json();
+          if (cancelled) break;
+          if (data[0]) {
             const r = data[0];
             const coords = extractLineCoords(r.geojson);
             const label = r.display_name.split(",")[0] ?? rue.nom;
@@ -700,12 +824,12 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
               onAdd(t);
             }
             if (i === 0) setSearchTarget([parseFloat(r.lat), parseFloat(r.lon)]);
-          })
-          .catch(() => {});
-      }, i * 1100);
-      timers.push(timer);
-    });
-    return () => { timers.forEach(clearTimeout); };
+          }
+        } catch { /* ignore */ }
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [voiesInitiales, rueInitiale, onAdd, communeNom]);
 
   const handleVertexDrag = useCallback((tIdx: number, ptIdx: number, lat: number, lng: number) => {
