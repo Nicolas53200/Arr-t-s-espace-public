@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, CheckCircle2, Map, History, Archive, Shield, Clock, ChevronRight, Globe, ExternalLink, Scale, BookOpen } from "lucide-react";
+import { Plus, CheckCircle2, Map, History, Archive, Shield, Clock, ChevronRight, Globe, ExternalLink, Scale, BookOpen, AlertTriangle, Calendar, RefreshCw, Bell } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -11,6 +11,7 @@ import ModalAbrogation from "@/components/arretes/ModalAbrogation";
 import { genNum } from "@/lib/arrete";
 import { AUJOURD_HUI } from "@/config/constants";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 export default function AccueilPage() {
@@ -21,6 +22,7 @@ export default function AccueilPage() {
   const [modalAction, setModalAction] = useState<{ type: string; arrete: Arrete } | null>(null);
   const [nextIdx, setNextIdx] = useState(156);
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const { bilan, nonLues } = useNotifications();
 
   function abrogerArrete(a: Arrete, motif: string) {
     const n = genNum("ABR", nextIdx);
@@ -68,6 +70,84 @@ export default function AccueilPage() {
           </div>
         ))}
       </div>
+      {/* Panneau d'alertes intelligentes */}
+      {bilan.total > 0 && (
+        <div style={{
+          marginBottom: 28,
+          border: bilan.expirations.some((e) => e.joursRestants <= 1) || bilan.conflits.some((c) => c.severite === "critique")
+            ? "1px solid #FECDD3" : "1px solid #FDE68A",
+          borderRadius: 10,
+          background: bilan.expirations.some((e) => e.joursRestants <= 1) || bilan.conflits.some((c) => c.severite === "critique")
+            ? "#FFF5F5" : "#FFFBEB",
+          overflow: "hidden",
+        }}>
+          <div style={{
+            padding: "14px 20px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            flexWrap: "wrap", gap: 10,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Bell size={16} color="#DC2626" />
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#1C1F1B" }}>
+                {bilan.total} alerte{bilan.total > 1 ? "s" : ""}
+              </span>
+              {nonLues > 0 && (
+                <span style={{
+                  fontSize: 10, padding: "1px 6px", borderRadius: 8,
+                  background: "#DC2626", color: "#fff",
+                  fontFamily: "'IBM Plex Mono',monospace", fontWeight: 600,
+                }}>
+                  {nonLues} non lue{nonLues > 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+            <button
+              className="btn-ghost"
+              onClick={() => navigate("/notifications")}
+              style={{ fontSize: 12 }}
+            >
+              Tout voir <ChevronRight size={12} />
+            </button>
+          </div>
+
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: 1, background: "#E4E1D6",
+          }}>
+            {[
+              { label: "Expirations", count: bilan.expirations.length, couleur: "#92400E", bg: "#FEF3C7", icone: Calendar },
+              { label: "Conflits", count: bilan.conflits.length, couleur: "#DC2626", bg: "#FEE2E2", icone: AlertTriangle },
+              { label: "En attente", count: bilan.validations.length, couleur: "#1E3A5F", bg: "#EBF0F7", icone: Clock },
+              { label: "Renouvellements", count: bilan.renouvellements.length, couleur: "#2F6B4F", bg: "#D1FAE5", icone: RefreshCw },
+            ].map(({ label, count, couleur, bg, icone: Icon }) => (
+              <div key={label} style={{
+                background: "#FFFFFF", padding: "12px 16px",
+                display: "flex", alignItems: "center", gap: 10,
+              }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  background: bg, display: "flex",
+                  alignItems: "center", justifyContent: "center",
+                }}>
+                  <Icon size={13} color={couleur} />
+                </div>
+                <div>
+                  <p style={{
+                    margin: 0, fontSize: 16, fontWeight: 700,
+                    color: count > 0 ? couleur : "#A6A399",
+                    fontFamily: "'IBM Plex Mono',monospace",
+                  }}>
+                    {count}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 10, color: "#6B6A60" }}>{label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {actifs.length > 0 && (
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>

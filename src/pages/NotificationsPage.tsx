@@ -1,30 +1,42 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check, Trash2 } from "lucide-react";
+import {
+  Bell, Check, Trash2, AlertTriangle, Clock, RefreshCw, BookOpenCheck,
+  ShieldAlert, Calendar,
+} from "lucide-react";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import type { TypeNotification, Notification } from "@/types";
 
-type FiltreOnglet = "non_lues" | "toutes" | "expiration" | "workflow";
+type FiltreOnglet = "non_lues" | "toutes" | "expiration" | "workflow" | "alerte" | "info";
 
-const ONGLETS: { cle: FiltreOnglet; label: string }[] = [
-  { cle: "non_lues", label: "Non lues" },
-  { cle: "toutes", label: "Toutes" },
-  { cle: "expiration", label: "Expirations" },
-  { cle: "workflow", label: "Workflow" },
+const ONGLETS: { cle: FiltreOnglet; label: string; icone: typeof Bell }[] = [
+  { cle: "non_lues", label: "Non lues", icone: Bell },
+  { cle: "toutes", label: "Toutes", icone: Bell },
+  { cle: "expiration", label: "Expirations", icone: Clock },
+  { cle: "alerte", label: "Alertes", icone: AlertTriangle },
+  { cle: "workflow", label: "Workflow", icone: ShieldAlert },
+  { cle: "info", label: "Renouvellements", icone: RefreshCw },
 ];
 
 const COULEURS_TYPE: Record<TypeNotification, string> = {
   expiration: "#92400E",
   workflow: "#1E3A5F",
-  info: "#6B6A60",
+  info: "#2F6B4F",
   alerte: "#DC2626",
 };
 
 const LABELS_TYPE: Record<TypeNotification, string> = {
   expiration: "Expiration",
   workflow: "Workflow",
-  info: "Information",
+  info: "Renouvellement",
   alerte: "Alerte",
+};
+
+const ICONES_TYPE: Record<TypeNotification, typeof Bell> = {
+  expiration: Calendar,
+  workflow: Clock,
+  info: RefreshCw,
+  alerte: AlertTriangle,
 };
 
 function filtrerNotifications(
@@ -36,15 +48,35 @@ function filtrerNotifications(
       return notifications.filter((n) => !n.lue);
     case "toutes":
       return notifications;
-    case "expiration":
-      return notifications.filter((n) => n.type === "expiration");
-    case "workflow":
-      return notifications.filter((n) => n.type === "workflow");
+    default:
+      return notifications.filter((n) => n.type === filtre);
   }
 }
 
+function StatMini({ label, count, couleur, icone: Icon }: { label: string; count: number; couleur: string; icone: typeof Bell }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "12px 16px", background: "#FFFFFF",
+      border: "1px solid #E4E1D6", borderRadius: 8, flex: "1 1 140px",
+    }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 6,
+        background: `${couleur}14`, display: "flex",
+        alignItems: "center", justifyContent: "center",
+      }}>
+        <Icon size={15} color={couleur} />
+      </div>
+      <div>
+        <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#1C1F1B", fontFamily: "'IBM Plex Mono',monospace" }}>{count}</p>
+        <p style={{ margin: 0, fontSize: 10, color: "#6B6A60" }}>{label}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function NotificationsPage() {
-  const { notifications, nonLues, dispatch } = useNotifications();
+  const { notifications, nonLues, bilan, dispatch } = useNotifications();
   const [ongletActif, setOngletActif] = useState<FiltreOnglet>("non_lues");
   const navigate = useNavigate();
 
@@ -58,33 +90,22 @@ export default function NotificationsPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: 24,
+          marginBottom: 20,
+          flexWrap: "wrap",
+          gap: 10,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Bell size={20} color="#1E3A5F" strokeWidth={1.75} />
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 20,
-              fontWeight: 600,
-              color: "#1C1F1B",
-            }}
-          >
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#1C1F1B" }}>
             Notifications
           </h1>
           {nonLues > 0 && (
-            <span
-              style={{
-                background: "#DC2626",
-                color: "#fff",
-                borderRadius: 10,
-                fontSize: 11,
-                padding: "2px 8px",
-                fontFamily: "'IBM Plex Mono', monospace",
-                fontWeight: 600,
-              }}
-            >
+            <span style={{
+              background: "#DC2626", color: "#fff", borderRadius: 10,
+              fontSize: 11, padding: "2px 8px",
+              fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
+            }}>
               {nonLues}
             </span>
           )}
@@ -94,16 +115,10 @@ export default function NotificationsPage() {
             <button
               onClick={() => dispatch({ type: "MARK_ALL_READ" })}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "none",
-                border: "1px solid #E4E1D6",
-                borderRadius: 4,
-                padding: "6px 12px",
-                fontSize: 12,
-                color: "#1E3A5F",
-                cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6,
+                background: "none", border: "1px solid #E4E1D6",
+                borderRadius: 4, padding: "6px 12px",
+                fontSize: 12, color: "#1E3A5F", cursor: "pointer",
               }}
             >
               <Check size={13} />
@@ -114,16 +129,10 @@ export default function NotificationsPage() {
             <button
               onClick={() => dispatch({ type: "CLEAR_ALL" })}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "none",
-                border: "1px solid #E4E1D6",
-                borderRadius: 4,
-                padding: "6px 12px",
-                fontSize: 12,
-                color: "#6B6A60",
-                cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6,
+                background: "none", border: "1px solid #E4E1D6",
+                borderRadius: 4, padding: "6px 12px",
+                fontSize: 12, color: "#6B6A60", cursor: "pointer",
               }}
             >
               <Trash2 size={13} />
@@ -133,56 +142,64 @@ export default function NotificationsPage() {
         </div>
       </div>
 
+      {/* Résumé des alertes */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <StatMini label="Expirations" count={bilan.expirations.length} couleur="#92400E" icone={Calendar} />
+        <StatMini label="Conflits" count={bilan.conflits.length} couleur="#DC2626" icone={AlertTriangle} />
+        <StatMini label="Validation" count={bilan.validations.length} couleur="#1E3A5F" icone={Clock} />
+        <StatMini label="Renouvellements" count={bilan.renouvellements.length} couleur="#2F6B4F" icone={RefreshCw} />
+        <StatMini label="Registre" count={bilan.registre.length} couleur="#7C3AED" icone={BookOpenCheck} />
+      </div>
+
       {/* Filter tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: 0,
-          borderBottom: "1px solid #E4E1D6",
-          marginBottom: 20,
-        }}
-      >
-        {ONGLETS.map((onglet) => (
-          <button
-            key={onglet.cle}
-            onClick={() => setOngletActif(onglet.cle)}
-            style={{
-              padding: "8px 16px",
-              fontSize: 13,
-              background: "none",
-              border: "none",
-              borderBottom:
-                ongletActif === onglet.cle
-                  ? "2px solid #1E3A5F"
-                  : "2px solid transparent",
-              color: ongletActif === onglet.cle ? "#1E3A5F" : "#6B6A60",
-              fontWeight: ongletActif === onglet.cle ? 600 : 400,
-              cursor: "pointer",
-            }}
-          >
-            {onglet.label}
-          </button>
-        ))}
+      <div style={{
+        display: "flex", gap: 0,
+        borderBottom: "1px solid #E4E1D6", marginBottom: 20,
+        overflowX: "auto",
+      }}>
+        {ONGLETS.map((onglet) => {
+          const count = filtrerNotifications(notifications, onglet.cle).length;
+          return (
+            <button
+              key={onglet.cle}
+              onClick={() => setOngletActif(onglet.cle)}
+              style={{
+                padding: "8px 14px",
+                fontSize: 12,
+                background: "none",
+                border: "none",
+                borderBottom: ongletActif === onglet.cle ? "2px solid #1E3A5F" : "2px solid transparent",
+                color: ongletActif === onglet.cle ? "#1E3A5F" : "#6B6A60",
+                fontWeight: ongletActif === onglet.cle ? 600 : 400,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              {onglet.label}
+              {count > 0 && (
+                <span style={{
+                  fontSize: 10, padding: "1px 5px", borderRadius: 8,
+                  background: ongletActif === onglet.cle ? "#1E3A5F" : "#E4E1D6",
+                  color: ongletActif === onglet.cle ? "#fff" : "#6B6A60",
+                  fontFamily: "'IBM Plex Mono',monospace",
+                }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Notification cards */}
       {notifsFiltrees.length === 0 ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "60px 24px",
-            color: "#6B6A60",
-          }}
-        >
-          <Bell
-            size={40}
-            color="#E4E1D6"
-            strokeWidth={1.25}
-            style={{ marginBottom: 16 }}
-          />
-          <p style={{ fontSize: 14, margin: "0 0 4px" }}>
-            Aucune notification
-          </p>
+        <div style={{ textAlign: "center", padding: "60px 24px", color: "#6B6A60" }}>
+          <Bell size={40} color="#E4E1D6" strokeWidth={1.25} style={{ marginBottom: 16 }} />
+          <p style={{ fontSize: 14, margin: "0 0 4px" }}>Aucune notification</p>
           <p style={{ fontSize: 12, margin: 0 }}>
             {ongletActif === "non_lues"
               ? "Toutes vos notifications ont ete lues."
@@ -191,143 +208,111 @@ export default function NotificationsPage() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {notifsFiltrees.map((notif) => (
-            <div
-              key={notif.id}
-              style={{
-                background: notif.lue ? "#FFFFFF" : "#F9F8F5",
-                border: "1px solid #E4E1D6",
-                borderRadius: 6,
-                padding: "14px 18px",
-                display: "flex",
-                gap: 14,
-                alignItems: "flex-start",
-              }}
-            >
-              {/* Type indicator dot */}
-              <span
+          {notifsFiltrees.map((notif) => {
+            const TypeIcon = ICONES_TYPE[notif.type];
+            return (
+              <div
+                key={notif.id}
                 style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  background: COULEURS_TYPE[notif.type],
-                  flexShrink: 0,
-                  marginTop: 4,
+                  background: notif.lue ? "#FFFFFF" : "#F9F8F5",
+                  border: `1px solid ${notif.priorite === "haute" && !notif.lue ? COULEURS_TYPE[notif.type] + "40" : "#E4E1D6"}`,
+                  borderRadius: 6,
+                  padding: "14px 18px",
+                  display: "flex",
+                  gap: 14,
+                  alignItems: "flex-start",
+                  borderLeft: notif.priorite === "haute" && !notif.lue ? `3px solid ${COULEURS_TYPE[notif.type]}` : undefined,
                 }}
-              />
+              >
+                {/* Type icon */}
+                <div style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  background: `${COULEURS_TYPE[notif.type]}14`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0, marginTop: 2,
+                }}>
+                  <TypeIcon size={14} color={COULEURS_TYPE[notif.type]} />
+                </div>
 
-              {/* Content */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 4,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: notif.lue ? 400 : 600,
-                      color: "#1C1F1B",
-                    }}
-                  >
-                    {notif.titre}
-                  </span>
-                  <span
-                    style={{
+                {/* Content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                    <span style={{
+                      fontSize: 13, fontWeight: notif.lue ? 400 : 600, color: "#1C1F1B",
+                    }}>
+                      {notif.titre}
+                    </span>
+                    <span style={{
                       fontSize: 10,
                       color: COULEURS_TYPE[notif.type],
                       background: `${COULEURS_TYPE[notif.type]}14`,
-                      padding: "1px 6px",
-                      borderRadius: 3,
+                      padding: "1px 6px", borderRadius: 3,
                       fontFamily: "'IBM Plex Mono', monospace",
-                    }}
-                  >
-                    {LABELS_TYPE[notif.type]}
-                  </span>
-                </div>
-                <p
-                  style={{
-                    margin: "0 0 8px",
-                    fontSize: 12,
-                    color: "#6B6A60",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {notif.message}
-                </p>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: "#6B6A60",
+                    }}>
+                      {LABELS_TYPE[notif.type]}
+                    </span>
+                    {notif.priorite === "haute" && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+                        letterSpacing: "0.05em", color: "#DC2626",
+                        background: "#FEE2E2", padding: "1px 5px", borderRadius: 3,
+                      }}>
+                        Urgent
+                      </span>
+                    )}
+                  </div>
+                  <p style={{
+                    margin: "0 0 8px", fontSize: 12,
+                    color: "#6B6A60", lineHeight: 1.5,
+                  }}>
+                    {notif.message}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <span style={{
+                      fontSize: 10, color: "#6B6A60",
                       fontFamily: "'IBM Plex Mono', monospace",
-                    }}
-                  >
-                    {new Date(notif.date).toLocaleDateString("fr-FR")}
-                  </span>
-                  {notif.lien && (
+                    }}>
+                      {new Date(notif.date).toLocaleDateString("fr-FR")}
+                    </span>
+                    {notif.lien && (
+                      <button
+                        onClick={() => navigate(notif.lien!)}
+                        style={{
+                          background: "none", border: "1px solid #E4E1D6",
+                          borderRadius: 3, padding: "3px 10px",
+                          fontSize: 11, color: "#1E3A5F", cursor: "pointer",
+                        }}
+                      >
+                        Voir
+                      </button>
+                    )}
+                    {!notif.lue && (
+                      <button
+                        onClick={() => dispatch({ type: "MARK_READ", id: notif.id })}
+                        style={{
+                          background: "none", border: "none", padding: 0,
+                          fontSize: 11, color: "#1E3A5F", cursor: "pointer",
+                          textDecoration: "underline",
+                        }}
+                      >
+                        Marquer comme lue
+                      </button>
+                    )}
                     <button
-                      onClick={() => navigate(notif.lien!)}
+                      onClick={() => dispatch({ type: "DISMISS", id: notif.id })}
                       style={{
-                        background: "none",
-                        border: "1px solid #E4E1D6",
-                        borderRadius: 3,
-                        padding: "3px 10px",
-                        fontSize: 11,
-                        color: "#1E3A5F",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Voir
-                    </button>
-                  )}
-                  {!notif.lue && (
-                    <button
-                      onClick={() =>
-                        dispatch({ type: "MARK_READ", id: notif.id })
-                      }
-                      style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        fontSize: 11,
-                        color: "#1E3A5F",
-                        cursor: "pointer",
+                        background: "none", border: "none", padding: 0,
+                        fontSize: 11, color: "#6B6A60", cursor: "pointer",
                         textDecoration: "underline",
                       }}
                     >
-                      Marquer comme lue
+                      Supprimer
                     </button>
-                  )}
-                  <button
-                    onClick={() =>
-                      dispatch({ type: "DISMISS", id: notif.id })
-                    }
-                    style={{
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      fontSize: 11,
-                      color: "#6B6A60",
-                      cursor: "pointer",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    Supprimer
-                  </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

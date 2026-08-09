@@ -7,21 +7,20 @@ function creerArrete(overrides: Partial<Arrete> = {}): Arrete {
     id: "a-exist-1",
     numero: "AR-2026-0100-STA",
     titre: "Stationnement Rue de la Paix",
-    type_code: "STA",
+    type_code: "stationnement_interdit",
     type_label: "Stationnement",
     commune_id: "c1",
     statut: "publie",
     date_debut: "2026-06-01",
     date_fin: "2026-08-31",
     date_creation: "2026-05-20",
-    auteur: "Agent 1",
+    cree_par: "Agent 1",
     voies: ["Rue de la Paix"],
     troncons: [
-      { voie_id: "rue-de-la-paix", label: "Rue de la Paix", impact: "interdiction_stationnement", de: "", a: "", sens: "double" },
+      { voie_id: "rue-de-la-paix", label: "Rue de la Paix", impact: "stationnement_interdit" },
     ],
-    phases: [],
-    visas: [],
-    articles: [],
+    versions: [],
+    arrete_abrogation: null,
     ...overrides,
   };
 }
@@ -107,12 +106,12 @@ describe("detecterConflits", () => {
       creerArrete({
         id: "a1",
         voies: ["Boulevard Victor Hugo"],
-        troncons: [{ voie_id: "blvd-victor-hugo", label: "Boulevard Victor Hugo", impact: "interdiction_stationnement", de: "", a: "", sens: "double" }],
+        troncons: [{ voie_id: "blvd-victor-hugo", label: "Boulevard Victor Hugo", impact: "stationnement_interdit" }],
       }),
       creerArrete({
         id: "a2",
         voies: ["Rue de la Paix"],
-        troncons: [{ voie_id: "rue-de-la-paix", label: "Rue de la Paix", impact: "interdiction_stationnement", de: "", a: "", sens: "double" }],
+        troncons: [{ voie_id: "rue-de-la-paix", label: "Rue de la Paix", impact: "stationnement_interdit" }],
       }),
     ];
     const conflits = detecterConflits(
