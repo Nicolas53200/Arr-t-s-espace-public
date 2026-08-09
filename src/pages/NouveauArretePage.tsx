@@ -214,7 +214,7 @@ export default function NouveauArretePage() {
   const champsTypeRequis = useMemo(() => {
     if (!typeArrete) return [] as string[];
     return typeArrete.champs
-      .filter((c) => c.type !== "bool")
+      .filter((c) => c.type !== "bool" && c.type !== "adresse")
       .map((c) => c.id);
   }, [typeArrete]);
 
@@ -264,7 +264,6 @@ export default function NouveauArretePage() {
     );
   }, [erreursPhases]);
 
-  const champsAdresse = useMemo(() => typeArrete?.champs.find((c) => c.type === "adresse"), [typeArrete]);
   const phaseActuelle = phases[phaseActive] || { troncons: [] as Troncon[] };
   const totalTroncons = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.voie_id)))].length;
 
@@ -765,7 +764,7 @@ export default function NouveauArretePage() {
 
           {typeArrete.multi_phases && <div style={{ background: "#EDE9FE", borderRadius: 5, padding: "8px 12px", marginBottom: 10, display: "flex", gap: 7, alignItems: "flex-start" }}><Layers size={12} color="#7C3AED" style={{ marginTop: 1, flexShrink: 0 }} /><p style={{ fontSize: 11, color: "#5B21B6", margin: 0 }}><strong>Phase :</strong> {typeArrete.aide_phases}</p></div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 16 }}>
-            {typeArrete.champs.filter((c) => (typeArrete.multi_phases ? c.type !== "datetime" : true)).map((c) => (
+            {typeArrete.champs.filter((c) => c.type !== "adresse" && (typeArrete.multi_phases ? c.type !== "datetime" : true)).map((c) => (
               <div key={c.id}>
                 <ChampFormulaire
                   champ={c}
@@ -1113,26 +1112,7 @@ export default function NouveauArretePage() {
         </div>
         {/* Colonne droite : aperçu carte */}
         {(() => {
-          // Combiner les voies déclarées + le champ adresse du type d'arrêté
-          const voiesPourCarte = [
-            ...voiesDeclarees.map((v) => ({ nom: v.nom, impact: v.impact })),
-          ];
-          // Si le type d'arrêté a un champ adresse (localisation), l'inclure aussi
-          const champAdresseType = typeArrete?.champs.find((c) => c.type === "adresse");
-          if (champAdresseType) {
-            const valAdresse = (valeurs[champAdresseType.id] as string) ?? "";
-            if (valAdresse.trim().length >= 3) {
-              // Utiliser un impact adapté au type d'arrêté
-              const impactDefaut: CodeImpact = typeArrete?.code === "stationnement_interdit" ? "stationnement_interdit"
-                : typeArrete?.code === "demenagement" ? "stationnement_interdit"
-                : typeArrete?.code === "occupation_dp" ? "zone_reservee"
-                : typeArrete?.code === "marche" ? "zone_reservee"
-                : typeArrete?.code === "pietonnisation" ? "zone_reservee"
-                : typeArrete?.code === "zone_30" ? "zone_reservee"
-                : "circulation_interdite";
-              voiesPourCarte.push({ nom: valAdresse, impact: impactDefaut });
-            }
-          }
+          const voiesPourCarte = voiesDeclarees.map((v) => ({ nom: v.nom, impact: v.impact }));
           const hasVoies = voiesPourCarte.some((v) => v.nom.trim().length >= 3);
 
           return (
@@ -1178,7 +1158,7 @@ export default function NouveauArretePage() {
           )}
           <CarteDessin
             troncons={phaseActuelle.troncons}
-            rueInitiale={(valeurs[champsAdresse?.id ?? ""] as string) || ""}
+            rueInitiale=""
             voiesInitiales={voiesDeclarees.filter((v) => v.nom.length >= 3).map((v) => ({ nom: v.nom, impact: v.impact, touteRue: v.touteRue, debut: v.debut, fin: v.fin }))}
             centre={tenant.centre_geo}
             communeCodePostal={tenant.code_postal}
