@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Building2, Home, CheckCircle2, Map, History, BookOpen, ClipboardCheck, BarChart3, ScrollText, Settings, Menu, X, LogOut, HelpCircle, Compass } from "lucide-react";
+import { Building2, Home, CheckCircle2, Map, History, BookOpen, BookOpenCheck, ClipboardCheck, BarChart3, ScrollText, Settings, Menu, X, LogOut, HelpCircle, Compass } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useArretes } from "@/contexts/ArretesContext";
@@ -47,6 +47,7 @@ export default function Header() {
     { path: "/validation", label: "Validation", icon: ClipboardCheck, badge: validationCount > 0 ? { count: validationCount, bg: "#92400E" } : null },
     { path: "/references", label: "References", icon: BookOpen, badge: null, dot: alertes.length > 0 },
     { path: "/tableau-de-bord", label: "Tableau de bord", icon: BarChart3, badge: null },
+    { path: "/registre", label: "Registre", icon: BookOpenCheck, badge: null },
     { path: "/journal", label: "Journal", icon: ScrollText, badge: null },
     ...(user?.role === "admin" ? [{ path: "/admin", label: "Admin", icon: Settings, badge: null }] : []),
   ];

@@ -15,4 +15,5 @@ export const ROUTES = {
   login: "/login",
   cartePublique: "/carte-publique",
   flux: "/flux",
+  registre: "/registre",
 } as const;

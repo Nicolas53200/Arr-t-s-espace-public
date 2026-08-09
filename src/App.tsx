@@ -27,6 +27,7 @@ import AdminPage from "@/pages/AdminPage";
 import FaqPage from "@/pages/FaqPage";
 import CartePubliquePage from "@/pages/CartePubliquePage";
 import FluxPage from "@/pages/FluxPage";
+import RegistrePage from "@/pages/RegistrePage";
 import NotFoundPage from "@/pages/NotFoundPage";
 import "@/styles/global.css";
 import "leaflet/dist/leaflet.css";
@@ -81,6 +82,7 @@ export default function App() {
                             <Route path="tableau-de-bord" element={<ErrorBoundary fallback={<SectionFallback section="Tableau de bord" />}><TableauBordPage /></ErrorBoundary>} />
                             <Route path="notifications" element={<NotificationsPage />} />
                             <Route path="journal" element={<JournalPage />} />
+                            <Route path="registre" element={<RegistrePage />} />
                             <Route path="faq" element={<FaqPage />} />
                           </Route>
                         </Route>

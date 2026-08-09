@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Search, Download, PlusCircle, Edit3, ArrowRightCircle, XCircle, Eye, FileDown, LogIn } from "lucide-react";
+import { Search, Download, PlusCircle, Edit3, ArrowRightCircle, XCircle, Eye, FileDown, LogIn, RefreshCw, Lock } from "lucide-react";
 import { useAudit } from "@/contexts/AuditContext";
 import { exportAuditCSV, telechargerCSV } from "@/lib/export";
 import type { ActionAudit } from "@/types";
@@ -12,6 +12,8 @@ const COULEURS_ACTION: Record<ActionAudit, string> = {
   consultation: "#6B6A60",
   export: "#92400E",
   connexion: "#6B6A60",
+  synchronisation: "#2563EB",
+  cloture: "#7C3AED",
 };
 
 const LABELS_ACTION: Record<ActionAudit, string> = {
@@ -22,6 +24,8 @@ const LABELS_ACTION: Record<ActionAudit, string> = {
   consultation: "Consultation",
   export: "Export",
   connexion: "Connexion",
+  synchronisation: "Synchronisation",
+  cloture: "Cloture",
 };
 
 const ICONES_ACTION: Record<ActionAudit, typeof PlusCircle> = {
@@ -32,9 +36,11 @@ const ICONES_ACTION: Record<ActionAudit, typeof PlusCircle> = {
   consultation: Eye,
   export: FileDown,
   connexion: LogIn,
+  synchronisation: RefreshCw,
+  cloture: Lock,
 };
 
-const ACTIONS: ActionAudit[] = ["creation", "modification", "transition", "abrogation", "consultation", "export", "connexion"];
+const ACTIONS: ActionAudit[] = ["creation", "modification", "transition", "abrogation", "consultation", "export", "connexion", "synchronisation", "cloture"];
 
 export default function JournalPage() {
   const { journal } = useAudit();
