@@ -71,11 +71,12 @@ function FitVoies({ voies, centre }: { voies: VoieLocalisee[]; centre?: [number,
 
 function InitView({ centre }: { centre: [number, number] }) {
   const map = useMap();
-  const done = useRef(false);
+  const prevCentre = useRef<string>("");
   useEffect(() => {
-    if (!done.current) {
+    const key = `${centre[0].toFixed(4)},${centre[1].toFixed(4)}`;
+    if (key !== prevCentre.current) {
       map.setView(centre, 14);
-      done.current = true;
+      prevCentre.current = key;
     }
   }, [centre, map]);
   return null;
@@ -129,7 +130,7 @@ async function geocoderOverpassBatch(
   try {
     const communeEsc = communeNom ? escapeOverpass(communeNom) : "";
     const areaLine = communeEsc
-      ? `area["name"="${communeEsc}"]["admin_level"~"^[78]$"]->.a;`
+      ? `area["name"~"^${communeEsc}$",i]["admin_level"~"^[78]$"]->.a;`
       : "";
     const inArea = communeEsc ? "(area.a)" : "";
 
@@ -428,9 +429,32 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
       controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiesKey, communeCodePostal]);
+  }, [voiesKey, communeCodePostal, communeNom]);
 
-  const defaultCenter: [number, number] = centre ?? [48.07, -0.77];
+  const [communeCentre, setCommuneCentre] = useState<[number, number] | null>(null);
+
+  // Géocoder la commune pour centrer la carte si pas de centre_geo
+  useEffect(() => {
+    if (centre || !communeNom) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      q: communeNom,
+      format: "json",
+      limit: "1",
+      countrycodes: "fr",
+    });
+    fetch(`https://nominatim.openstreetmap.org/search?${params}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.[0]) {
+          setCommuneCentre([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [centre, communeNom]);
+
+  const defaultCenter: [number, number] = centre ?? communeCentre ?? [46.6, 2.2];
 
   return (
     <div style={{
@@ -475,7 +499,7 @@ export default function CarteApercu({ centre, communeCodePostal, communeNom, voi
           attributionControl={false}
         >
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          {centre && <InitView centre={centre} />}
+          <InitView centre={defaultCenter} />
           <FitVoies voies={localisees} centre={centre} />
 
           {localisees.map((v, i) =>

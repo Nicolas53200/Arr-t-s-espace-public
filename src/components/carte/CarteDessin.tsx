@@ -597,8 +597,30 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [deviationLoading, setDeviationLoading] = useState(false);
   const [deviationError, setDeviationError] = useState("");
+  const [communeCentre, setCommuneCentre] = useState<[number, number] | null>(null);
 
-  const mapCentre = centre ?? [47.6575, -2.7610];
+  // Géocoder la commune pour centrer la carte si pas de centre_geo
+  useEffect(() => {
+    if (centre || !communeNom) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      q: communeNom,
+      format: "json",
+      limit: "1",
+      countrycodes: "fr",
+    });
+    fetch(`https://nominatim.openstreetmap.org/search?${params}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.[0]) {
+          setCommuneCentre([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [centre, communeNom]);
+
+  const mapCentre = centre ?? communeCentre ?? [46.6, 2.2];
 
   function finishDraw(pts: [number, number][], geoType: "LineString" | "Polygon") {
     const t: Troncon = {
@@ -656,7 +678,8 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
     const timers: ReturnType<typeof setTimeout>[] = [];
     rues.forEach((rue, i) => {
       const timer = setTimeout(() => {
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(rue.nom + ", France")}`)
+        const searchQuery = communeNom ? `${rue.nom}, ${communeNom}, France` : `${rue.nom}, France`;
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&polygon_geojson=1&q=${encodeURIComponent(searchQuery)}`)
           .then((r) => r.json())
           .then((data: NominatimResult[]) => {
             if (!data[0]) return;
@@ -683,7 +706,7 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
       timers.push(timer);
     });
     return () => { timers.forEach(clearTimeout); };
-  }, [voiesInitiales, rueInitiale, onAdd]);
+  }, [voiesInitiales, rueInitiale, onAdd, communeNom]);
 
   const handleVertexDrag = useCallback((tIdx: number, ptIdx: number, lat: number, lng: number) => {
     if (!onUpdateCoords) return;
