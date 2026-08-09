@@ -258,10 +258,11 @@ function ConfigurationTab({
 }: {
   config: ConfigTenant;
   setConfig: React.Dispatch<React.SetStateAction<ConfigTenant>>;
-  updateTenant: (updates: Partial<{ nom: string; logo?: string; adresse?: string; telephone?: string; email_contact?: string; devise?: string; nom_maire?: string; titre_maire?: string }>) => void;
+  updateTenant: (updates: Partial<{ nom: string; logo?: string; adresse?: string; telephone?: string; email_contact?: string; devise?: string; nom_maire?: string; titre_maire?: string; tampon?: string }>) => void;
   toast: { success: (msg: string) => void; warning: (msg: string) => void };
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tamponInputRef = useRef<HTMLInputElement>(null);
 
   function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -283,6 +284,26 @@ function ConfigurationTab({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function handleTamponUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500_000) {
+      toast.warning("Le fichier depasse 500 Ko. Veuillez choisir une image plus legere.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setConfig((prev) => ({ ...prev, tampon: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeTampon() {
+    setConfig((prev) => ({ ...prev, tampon: undefined }));
+    if (tamponInputRef.current) tamponInputRef.current.value = "";
+  }
+
   function handleSave() {
     updateTenant({
       nom: config.nom,
@@ -293,6 +314,7 @@ function ConfigurationTab({
       devise: config.devise,
       nom_maire: config.nom_maire,
       titre_maire: config.titre_maire,
+      tampon: config.tampon,
     });
     toast.success("Configuration enregistree");
   }
@@ -371,6 +393,48 @@ function ConfigurationTab({
         {champ("Nom du Maire / Signataire", config.nom_maire, "nom_maire", "M. Jean-Pierre Martin")}
         {champ("Titre du signataire", config.titre_maire, "titre_maire", "Le Maire")}
 
+        {/* Tampon officiel */}
+        <div style={{ marginTop: 16, marginBottom: 14 }}>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4, color: "#1A1A18" }}>Tampon / Cachet officiel</label>
+          <p style={{ fontSize: 11, color: "#6B6A60", margin: "0 0 10px" }}>Image du cachet de la mairie qui apparaitra sur les arretes PDF a cote de la signature.</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{
+              width: 80, height: 80, borderRadius: "50%",
+              border: "2px dashed #E4E1D6", background: "#F9F8F5",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              overflow: "hidden", flexShrink: 0,
+            }}>
+              {config.tampon ? (
+                <img src={config.tampon} alt="Tampon" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A6A399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="6" />
+                  <circle cx="12" cy="12" r="2" />
+                </svg>
+              )}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <input
+                ref={tamponInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml"
+                onChange={handleTamponUpload}
+                style={{ display: "none" }}
+              />
+              <button className="btn-primary" onClick={() => tamponInputRef.current?.click()} style={{ fontSize: 12 }}>
+                <Upload size={12} />{config.tampon ? "Changer le tampon" : "Telecharger un tampon"}
+              </button>
+              {config.tampon && (
+                <button className="btn-secondary" onClick={removeTampon} style={{ fontSize: 12 }}>
+                  <Trash2 size={12} />Supprimer
+                </button>
+              )}
+              <p style={{ fontSize: 10, color: "#A6A399", margin: 0 }}>PNG ou JPG, fond transparent recommande. 500 Ko max.</p>
+            </div>
+          </div>
+        </div>
+
         {/* Preview */}
         <div style={{ border: "1px solid #E4E1D6", borderRadius: 6, padding: 16, background: "#FAFAF7", marginTop: 10 }}>
           <p style={{ fontSize: 10, color: "#A6A399", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Apercu de l'en-tete PDF</p>
@@ -382,6 +446,11 @@ function ConfigurationTab({
             {config.devise && <p style={{ fontSize: 8, color: "#A6A399", fontStyle: "italic", margin: "0 0 4px" }}>{config.devise}</p>}
             <p style={{ fontSize: 14, fontWeight: 700, color: "#1E3A5F", textTransform: "uppercase", margin: "0 0 2px" }}>{config.nom || "Nom de la collectivite"}</p>
             {config.adresse && <p style={{ fontSize: 9, color: "#6B6A60", margin: 0 }}>{config.adresse}</p>}
+            {config.tampon && (
+              <div style={{ marginTop: 8 }}>
+                <img src={config.tampon} alt="Tampon" style={{ height: 40, opacity: 0.7, objectFit: "contain" }} />
+              </div>
+            )}
           </div>
         </div>
       </div>

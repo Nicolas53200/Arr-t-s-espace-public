@@ -34,6 +34,8 @@ export interface TenantInfo {
   devise?: string;
   nom_maire?: string;
   titre_maire?: string;
+  /** Image du tampon/cachet officiel (data URL base64) */
+  tampon?: string;
   /** Coordonnées GPS du centre-ville [latitude, longitude] */
   centre_geo?: [number, number];
 }

@@ -19,6 +19,7 @@ export interface ConfigTenant {
   devise?: string;
   nom_maire?: string;
   titre_maire?: string;
+  tampon?: string;
   couleur_primaire: string;
   modules_actifs: string[];
   limites: {
