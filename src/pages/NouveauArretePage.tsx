@@ -356,6 +356,16 @@ export default function NouveauArretePage() {
   }
 
   function allerCarte() {
+    // Pour les types non-multi-phases, copier les dates des champs vers la phase
+    if (typeArrete && !typeArrete.multi_phases) {
+      const dateDebut = (valeurs["date_debut"] as string) ?? "";
+      const dateFin = (valeurs["date_fin"] as string) ?? "";
+      if (dateDebut || dateFin) {
+        setPhases((prev) => prev.map((ph, i) =>
+          i === 0 ? { ...ph, date_debut: dateDebut || ph.date_debut, date_fin: dateFin || ph.date_fin } : ph,
+        ));
+      }
+    }
     setEtape(2);
   }
 
@@ -369,7 +379,16 @@ export default function NouveauArretePage() {
       return next;
     });
     if (!etape1Valide) {
-      toast.warning("Veuillez remplir tous les champs obligatoires");
+      const manquants: string[] = [];
+      if (!erreurTitre.valide) manquants.push("Titre");
+      for (const cid of champsTypeRequis) {
+        if (erreursChamps[cid]) {
+          const champ = typeArrete?.champs.find((c) => c.id === cid);
+          manquants.push(champ?.label ?? cid);
+        }
+      }
+      toast.warning(`Champs manquants : ${manquants.join(", ")}`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     allerCarte();
@@ -1102,8 +1121,7 @@ export default function NouveauArretePage() {
               <button
                 className="btn-primary"
                 onClick={tentativeAllerCarte}
-                disabled={!etape1Valide}
-                style={{ fontSize: 12, background: etape1Valide ? "#1E3A5F" : "#D8D5C8" }}
+                style={{ fontSize: 12, opacity: etape1Valide ? 1 : 0.55 }}
               >
                 Identifier les voies <ChevronRight size={13} />
               </button>
