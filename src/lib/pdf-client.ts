@@ -443,6 +443,25 @@ export function ouvrirApercuPdf(
     font-size: 9pt;
     color: #6B6A60;
   }
+  .signature .signature-image {
+    max-height: 60pt;
+    margin: 8pt 0;
+    opacity: 0.85;
+  }
+  .pieces-jointes {
+    margin-top: 12pt;
+    font-size: 10pt;
+    color: #6B6A60;
+  }
+  .pieces-jointes .pj-titre {
+    font-weight: bold;
+    font-size: 10pt;
+    margin-bottom: 4pt;
+  }
+  .pieces-jointes li {
+    margin: 2pt 0;
+    font-size: 9pt;
+  }
   .footer {
     margin-top: 36pt;
     padding-top: 8pt;
@@ -537,8 +556,17 @@ export function ouvrirApercuPdf(
   <div class="signature">
     <p class="lieu-date">Fait a ${escapeHtml(commune)}, le ${formatDateFr(arrete.date_creation)}</p>
     <p class="titre-signataire">${escapeHtml(titreMaire)}</p>
+    ${arrete.signature ? `<img src="${arrete.signature}" alt="Signature" class="signature-image" />` : ""}
     <p class="auteur">${escapeHtml(nomMaire)}</p>
   </div>
+
+  ${arrete.pieces_jointes && arrete.pieces_jointes.length > 0 ? `
+  <div class="pieces-jointes">
+    <p class="pj-titre">Pieces jointes (${arrete.pieces_jointes.length}) :</p>
+    <ul>
+      ${arrete.pieces_jointes.map((pj) => `<li>${escapeHtml(pj.nom)}</li>`).join("\n      ")}
+    </ul>
+  </div>` : ""}
 
   <div class="footer">
     Document genere automatiquement — Mairie de ${escapeHtml(commune)} — ${escapeHtml(arrete.numero)}

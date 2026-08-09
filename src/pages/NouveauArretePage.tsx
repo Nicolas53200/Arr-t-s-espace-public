@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, Check, Plus, X, Layers, Flag, Edit2, RefreshCw,
   FileText, MapPin, Home, Map, Scale, Shield, AlertTriangle, ChevronDown, Save,
+  BookmarkPlus, BookOpen, Trash2,
 } from "lucide-react";
 import { useArretes } from "@/contexts/ArretesContext";
 import { useReferences } from "@/contexts/ReferencesContext";
@@ -22,7 +23,10 @@ import ChampFormulaire from "@/components/formulaire/ChampFormulaire";
 import RecurrenceSelector from "@/components/formulaire/RecurrenceSelector";
 import CarteDessin from "@/components/carte/CarteDessin";
 import CarteApercu from "@/components/carte/CarteApercu";
-import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact, ArticlePersonnalise, Recurrence } from "@/types";
+import SignaturePad from "@/components/formulaire/SignaturePad";
+import PiecesJointes from "@/components/formulaire/PiecesJointes";
+import { getModeles, sauvegarderModele, supprimerModele } from "@/lib/modeles";
+import type { Arrete, TypeArrete, Phase, Troncon, CodeImpact, ArticlePersonnalise, Recurrence, PieceJointe, ModeleArrete } from "@/types";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { validerChamp } from "@/lib/validation";
 import type { RegleValidation } from "@/lib/validation";
@@ -128,6 +132,14 @@ export default function NouveauArretePage() {
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>(
     () => arreteExistant?.recurrence,
   );
+  const [signature, setSignature] = useState<string | undefined>(
+    () => arreteExistant?.signature,
+  );
+  const [piecesJointes, setPiecesJointes] = useState<PieceJointe[]>(
+    () => arreteExistant?.pieces_jointes ?? [],
+  );
+  const [modeles, setModeles] = useState<ModeleArrete[]>(() => getModeles());
+  const [showModeles, setShowModeles] = useState(false);
 
   /* ---- Guard "modifications non sauvegardees" ---- */
   const [sauvegarde, setSauvegarde] = useState(false);
@@ -289,7 +301,59 @@ export default function NouveauArretePage() {
       setPerimetre("");
     }
     setRecurrence(undefined);
+    setSignature(undefined);
+    setPiecesJointes([]);
     setEtape(1);
+  }
+
+  function allerDepuisModele(modele: ModeleArrete) {
+    const t = TYPES_ARRETE.find((ta) => ta.code === modele.type_code);
+    if (!t) return;
+    setTypeArrete(t);
+    setValeurs(modele.valeurs ?? {});
+    setTitreArrete("");
+    setCommuneId(tenant.id);
+    phaseIdCounter.current = 1;
+    setPhases([{ id: 1, label: t.multi_phases ? "Phase 1" : "Impact principal", date_debut: "", date_fin: "", localisation: "", troncons: [] }]);
+    setPhaseActive(0);
+    setTouchedEtape1({});
+    setTouchedPhases({});
+    setVoiesDeclarees(modele.voiesDeclarees?.map((v, i) => ({ id: i + 1, nom: v.nom, touteRue: v.touteRue, debut: v.debut, fin: v.fin, impact: v.impact })) ?? []);
+    setMotifModification("");
+    setConsiderants(modele.considerants ?? []);
+    setDerogations(modele.derogations ?? []);
+    setArticlesPerso([]);
+    setClauseFourriere(modele.clause_fourriere ?? false);
+    setClauseRecours(modele.clause_recours ?? false);
+    setPerimetre("");
+    setSectionJuridiqueOuverte(!!(modele.considerants?.length || modele.derogations?.length));
+    setRecurrence(modele.recurrence);
+    setSignature(undefined);
+    setPiecesJointes([]);
+    setShowModeles(false);
+    setEtape(1);
+    toast.success(`Modele "${modele.nom}" charge`);
+  }
+
+  function sauvegarderCommeModele() {
+    if (!typeArrete) return;
+    const modele: ModeleArrete = {
+      id: `mod_${Date.now()}`,
+      nom: titreArrete || typeArrete.label,
+      type_code: typeArrete.code,
+      type_label: typeArrete.label,
+      valeurs,
+      voiesDeclarees: voiesDeclarees.map((v) => ({ nom: v.nom, touteRue: v.touteRue, debut: v.debut, fin: v.fin, impact: v.impact })),
+      considerants: considerants.filter((c) => c.trim().length > 0),
+      derogations: derogations.filter((d) => d.trim().length > 0),
+      clause_fourriere: clauseFourriere,
+      clause_recours: clauseRecours,
+      recurrence,
+      date_creation: new Date().toISOString(),
+    };
+    sauvegarderModele(modele);
+    setModeles(getModeles());
+    toast.success("Modele sauvegarde");
   }
 
   function allerCarte() {
@@ -363,11 +427,11 @@ export default function NouveauArretePage() {
     const nomAuteur = user?.nom ?? "Agent";
 
     if (arreteExistant) {
-      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "brouillon", voies: tv, troncons: tronconsFlatMap, commune: communeChoisie?.nom ?? "", commune_id: communeId, recurrence, ...donneesJuridiques } });
+      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "brouillon", voies: tv, troncons: tronconsFlatMap, commune: communeChoisie?.nom ?? "", commune_id: communeId, recurrence, signature, pieces_jointes: piecesJointes.length > 0 ? piecesJointes : undefined, ...donneesJuridiques } });
       logAction("modification", "arrete", arreteExistant.id, `Sauvegarde brouillon — ${arreteExistant.numero}`, { statut: "brouillon" });
     } else {
       const arreteId = `a${Date.now()}`;
-      const nouvel: Arrete = { id: arreteId, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "brouillon", cree_par: nomAuteur, date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, recurrence, ...donneesJuridiques };
+      const nouvel: Arrete = { id: arreteId, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "brouillon", cree_par: nomAuteur, date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, recurrence, signature, pieces_jointes: piecesJointes.length > 0 ? piecesJointes : undefined, ...donneesJuridiques };
       dispatch({ type: "ADD", arrete: nouvel });
       logAction("creation", "arrete", arreteId, `Brouillon créé — ${num} — ${titreArrete || typeArrete!.label}`, { statut: "brouillon" });
     }
@@ -394,12 +458,12 @@ export default function NouveauArretePage() {
     const nomAuteur = user?.nom ?? "Agent";
     if (arreteExistant) {
       const h = { version: (arreteExistant.versions.length) + 1, date: AUJOURD_HUI.toISOString().split("T")[0]!, auteur: nomAuteur, motif: motifModification || "Modification", titre: arreteExistant.titre };
-      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "modifie", voies: tv, troncons: tronconsFlatMap, versions: [h, ...arreteExistant.versions], commune: communeChoisie?.nom ?? "", commune_id: communeId, recurrence, ...donneesJuridiques } });
+      dispatch({ type: "UPDATE", id: arreteExistant.id, updates: { titre: titreArrete || arreteExistant.titre, statut: "modifie", voies: tv, troncons: tronconsFlatMap, versions: [h, ...arreteExistant.versions], commune: communeChoisie?.nom ?? "", commune_id: communeId, recurrence, signature, pieces_jointes: piecesJointes.length > 0 ? piecesJointes : undefined, ...donneesJuridiques } });
       setDernierArrete({ numero: arreteExistant.numero, mode: "modifie", titre: titreArrete });
       logAction("modification", "arrete", arreteExistant.id, `Modification de l'arrêté ${arreteExistant.numero} — ${titreArrete || arreteExistant.titre}`, { motif: motifModification || "Modification" });
     } else {
       const arreteId = `a${Date.now()}`;
-      const nouvel: Arrete = { id: arreteId, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: nomAuteur, date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, recurrence, ...donneesJuridiques };
+      const nouvel: Arrete = { id: arreteId, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie", cree_par: nomAuteur, date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", commune: communeChoisie?.nom ?? "", commune_id: communeId, voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null, recurrence, signature, pieces_jointes: piecesJointes.length > 0 ? piecesJointes : undefined, ...donneesJuridiques };
       dispatch({ type: "ADD", arrete: nouvel });
       setDernierArrete({ numero: num, mode: "cree", titre: titreArrete || typeArrete!.label });
       logAction("creation", "arrete", arreteId, `Création de l'arrêté ${num} — ${titreArrete || typeArrete!.label}`);
@@ -503,6 +567,71 @@ export default function NouveauArretePage() {
               </button>
             ))}
           </div>
+
+          {/* ─── Modèles sauvegardés ─── */}
+          {modeles.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <button
+                onClick={() => setShowModeles((s) => !s)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, background: "none", border: "none",
+                  cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif", padding: 0, marginBottom: 8,
+                }}
+              >
+                <BookOpen size={13} color="#1E3A5F" />
+                <span style={{ fontWeight: 600, fontSize: 13, color: "#1C1F1B" }}>Mes modeles</span>
+                <span style={{ fontSize: 10, background: "#EDEAE0", color: "#6B6A60", padding: "1px 6px", borderRadius: 8, fontWeight: 600 }}>{modeles.length}</span>
+                <ChevronDown size={13} color="#6B6A60" style={{ transform: showModeles ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+              </button>
+              {showModeles && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 8 }}>
+                  {modeles.map((m) => (
+                    <div key={m.id} style={{ border: "1px solid #E4E1D6", borderRadius: 7, padding: 12, background: "#FAFAF7", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div>
+                          <p style={{ fontWeight: 600, fontSize: 12, margin: 0 }}>{m.nom}</p>
+                          <p style={{ fontSize: 10, color: "#6B6A60", margin: "2px 0 0" }}>{m.type_label}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            supprimerModele(m.id);
+                            setModeles(getModeles());
+                            toast.success("Modele supprime");
+                          }}
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#A6A399" }}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {(m.voiesDeclarees?.length ?? 0) > 0 && (
+                          <span style={{ fontSize: 9, background: "#EDEAE0", color: "#6B6A60", padding: "1px 5px", borderRadius: 6 }}>
+                            {m.voiesDeclarees!.length} voie{m.voiesDeclarees!.length > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {(m.considerants?.length ?? 0) > 0 && (
+                          <span style={{ fontSize: 9, background: "#EDE9FE", color: "#7C3AED", padding: "1px 5px", borderRadius: 6 }}>
+                            {m.considerants!.length} considerant{m.considerants!.length > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => allerDepuisModele(m)}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                          fontSize: 11, padding: "5px 10px", borderRadius: 5, border: "1px solid #1E3A5F",
+                          background: "#FFFFFF", color: "#1E3A5F", fontWeight: 600, cursor: "pointer",
+                          fontFamily: "'IBM Plex Sans', sans-serif",
+                        }}
+                      >
+                        <BookOpen size={10} /> Utiliser
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -940,9 +1069,28 @@ export default function NouveauArretePage() {
             )}
           </div>
 
+          {/* ─── Signature numérique ─── */}
+          <div style={{ marginBottom: 14 }}>
+            <SignaturePad value={signature} onChange={setSignature} />
+          </div>
+
+          {/* ─── Pièces jointes ─── */}
+          <div style={{ marginBottom: 14 }}>
+            <PiecesJointes pieces={piecesJointes} onChange={setPiecesJointes} />
+          </div>
+
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button className="btn-ghost" onClick={() => arreteExistant ? naviguerAvecGarde("/") : setEtape(0)} style={{ fontSize: 12 }}><ChevronLeft size={13} />Retour</button>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {titreArrete.length > 0 && !arreteExistant && (
+                <button
+                  className="btn-ghost"
+                  onClick={sauvegarderCommeModele}
+                  style={{ fontSize: 12, color: "#7C3AED" }}
+                >
+                  <BookmarkPlus size={12} /> Modele
+                </button>
+              )}
               {titreArrete.length > 0 && (
                 <button
                   className="btn-ghost"
@@ -1175,6 +1323,28 @@ export default function NouveauArretePage() {
             </div>
           )}
 
+          {/* Résumé signature + pièces jointes */}
+          {(signature || piecesJointes.length > 0) && (
+            <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 14, marginBottom: 10 }}>
+              {signature && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: piecesJointes.length > 0 ? 8 : 0 }}>
+                  <span style={{ fontSize: 10, background: "#D1FAE5", color: "#065F46", padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>✓ Signe numeriquement</span>
+                  <img src={signature} alt="Signature" style={{ maxHeight: 32, opacity: 0.7 }} />
+                </div>
+              )}
+              {piecesJointes.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 600, color: "#6B6A60", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Pieces jointes ({piecesJointes.length})</p>
+                  {piecesJointes.map((pj) => (
+                    <p key={pj.id} style={{ fontSize: 11, color: "#6B6A60", margin: "1px 0", display: "flex", alignItems: "center", gap: 4 }}>
+                      <FileText size={9} /> {pj.nom}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ background: "#F4F2EC", borderRadius: 7, padding: "10px 14px", marginBottom: 16, fontSize: 11, color: "#6B6A60" }}>
             <p style={{ fontWeight: 600, margin: "0 0 4px", color: "#1C1F1B", fontSize: 12 }}>A la publication :</p>
             {[[FileText, arreteExistant ? "PDF mis a jour" : "PDF officiel genere"], [MapPin, `Carte mise a jour (${totalTroncons} troncon${totalTroncons > 1 ? "s" : ""})`], [Check, "Diffusion aux services"]].map(([Icon, txt]) => (
@@ -1218,6 +1388,8 @@ export default function NouveauArretePage() {
                   clause_recours: clauseRecours,
                   perimetre: perimetre.trim() || undefined,
                   recurrence,
+                  signature,
+                  pieces_jointes: piecesJointes.length > 0 ? piecesJointes : undefined,
                 };
                 ouvrirApercuPdf(apercu, references, tenant.nom, tenant.code_postal, tenant);
               }} style={{ fontSize: 12 }}><FileText size={12} />Apercu PDF</button>

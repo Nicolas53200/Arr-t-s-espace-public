@@ -134,6 +134,36 @@ export interface Arrete {
   perimetre?: string;
   /** Récurrence pour les arrêtés permanents */
   recurrence?: Recurrence;
+  /** Signature numérique (data URL base64 du canvas) */
+  signature?: string;
+  /** Pièces jointes */
+  pieces_jointes?: PieceJointe[];
+}
+
+/** Modèle d'arrêté réutilisable */
+export interface ModeleArrete {
+  id: string;
+  nom: string;
+  type_code: CodeTypeArrete;
+  type_label: string;
+  valeurs: Record<string, string | boolean>;
+  voiesDeclarees: { nom: string; touteRue: boolean; debut: string; fin: string; impact: CodeImpact }[];
+  considerants: string[];
+  derogations: string[];
+  clause_fourriere: boolean;
+  clause_recours: boolean;
+  recurrence?: Recurrence;
+  date_creation: string;
+}
+
+/** Pièce jointe (stockée en base64) */
+export interface PieceJointe {
+  id: string;
+  nom: string;
+  type: string;
+  taille: number;
+  data: string; // base64
+  date_ajout: string;
 }
 
 export interface Voie {
