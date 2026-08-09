@@ -259,7 +259,7 @@ function ConfigurationTab({
   config: ConfigTenant;
   setConfig: React.Dispatch<React.SetStateAction<ConfigTenant>>;
   updateTenant: (updates: Partial<{ nom: string; logo?: string; adresse?: string; telephone?: string; email_contact?: string; devise?: string; nom_maire?: string; titre_maire?: string }>) => void;
-  toast: { success: (msg: string) => void };
+  toast: { success: (msg: string) => void; warning: (msg: string) => void };
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -267,6 +267,7 @@ function ConfigurationTab({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 500_000) {
+      toast.warning("Le fichier depasse 500 Ko. Veuillez choisir une image plus legere.");
       return;
     }
     const reader = new FileReader();
