@@ -1,0 +1,46 @@
+{
+  "name": "Actes360 — Gestion des arrêtés municipaux",
+  "short_name": "Actes360",
+  "description": "Plateforme SaaS de gestion des arrêtés et de l'espace public pour les collectivités françaises.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FAFAF7",
+  "theme_color": "#1E3A5F",
+  "lang": "fr-FR",
+  "categories": ["government", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Arrêtés actifs",
+      "short_name": "Actifs",
+      "url": "/actifs",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Nouveau arrêté",
+      "short_name": "Nouveau",
+      "url": "/nouveau",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Carte",
+      "url": "/carte",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -3,6 +3,8 @@ import { Outlet } from "react-router-dom";
 import Header from "./Header";
 import FeedbackWidget from "@/components/common/FeedbackWidget";
 import AppTour from "@/components/common/AppTour";
+import IndicateurConnexion, { BanniereMiseAJour } from "@/components/common/IndicateurConnexion";
+import InvitePWA from "@/components/common/InvitePWA";
 
 export default function AppShell() {
   const [tourOuvert, setTourOuvert] = useState(false);
@@ -28,6 +30,9 @@ export default function AppShell() {
         <Outlet />
       </main>
       <FeedbackWidget />
+      <IndicateurConnexion />
+      <BanniereMiseAJour />
+      <InvitePWA />
       {tourOuvert && <AppTour onClose={() => setTourOuvert(false)} />}
     </div>
   );
