@@ -31,6 +31,8 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { validerChamp } from "@/lib/validation";
 import type { RegleValidation } from "@/lib/validation";
 import { genererContenuJuridique, type ContexteArrete } from "@/lib/juridique-generator";
+import { detecterConflits, formaterChevauchement, type Conflit } from "@/lib/conflits";
+import { inscrireAuRegistre } from "@/lib/registre-officiel";
 
 interface VoieDeclaree {
   id: number;
@@ -266,6 +268,28 @@ export default function NouveauArretePage() {
 
   const phaseActuelle = phases[phaseActive] || { troncons: [] as Troncon[] };
   const totalTroncons = [...new Set(phases.flatMap((ph) => ph.troncons.map((t) => t.voie_id)))].length;
+
+  /* ---- Détection de conflits spatio-temporels ---- */
+  const [showConflits, setShowConflits] = useState(false);
+  const conflits = useMemo<Conflit[]>(() => {
+    // Calculer les voies et dates pour la détection
+    const tousLesTroncons = phases.flatMap((ph) => ph.troncons);
+    const voiesNoms = voiesDeclarees.map((v) => v.nom).filter((n) => n.length > 0);
+    const voieIds = tousLesTroncons.map((t) => t.voie_id);
+    const dateDebut = phases[0]?.date_debut || (valeurs["date_debut"] as string) || "";
+    const dateFin = phases[phases.length - 1]?.date_fin || (valeurs["date_fin"] as string) || "";
+
+    if (!dateDebut || voiesNoms.length === 0) return [];
+
+    return detecterConflits(
+      voiesNoms,
+      dateDebut,
+      dateFin,
+      voieIds,
+      arretes,
+      arreteExistant?.id,
+    );
+  }, [phases, voiesDeclarees, valeurs, arretes, arreteExistant]);
 
   function allerFormulaire(t: TypeArrete) {
     setTypeArrete(t);
@@ -505,6 +529,16 @@ export default function NouveauArretePage() {
         lien: "/actifs",
       },
     });
+
+    // Inscrire au registre réglementaire
+    try {
+      const arreteInscription = arreteExistant
+        ? { ...arreteExistant, titre: titreArrete || arreteExistant.titre, voies: tv, troncons: tronconsFlatMap, statut: "publie" as const, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "" }
+        : { id: `a${Date.now() - 1}`, numero: num, type_code: typeArrete!.code, type_label: typeArrete!.label, titre: titreArrete || typeArrete!.label, statut: "publie" as const, cree_par: nomAuteur, date_creation: AUJOURD_HUI.toISOString().split("T")[0]!, date_debut: phases[0]?.date_debut || "", date_fin: phases[phases.length - 1]?.date_fin || "", voies: tv, troncons: tronconsFlatMap, versions: [], arrete_abrogation: null };
+      inscrireAuRegistre(tenant.id, arreteInscription as Arrete, nomAuteur);
+    } catch {
+      // L'inscription au registre ne bloque pas la publication
+    }
 
     setPublie(true);
     setSauvegarde(true);
@@ -1229,6 +1263,72 @@ export default function NouveauArretePage() {
       {etape === 3 && typeArrete && !publie && (
         <div style={{ maxWidth: 560 }}>
           <h2 className="fd" style={{ fontSize: 20, marginBottom: 12 }}>Recapitulatif</h2>
+
+          {/* Alerte conflits spatio-temporels */}
+          {conflits.length > 0 && (
+            <div style={{
+              border: conflits.some((c) => c.severite === "critique") ? "1.5px solid #FECDD3" : "1.5px solid #FDE68A",
+              borderRadius: 8,
+              background: conflits.some((c) => c.severite === "critique") ? "#FFF1F2" : "#FFFBEB",
+              padding: "14px 16px",
+              marginBottom: 14,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <AlertTriangle size={16} color={conflits.some((c) => c.severite === "critique") ? "#BE123C" : "#D97706"} />
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: conflits.some((c) => c.severite === "critique") ? "#BE123C" : "#92400E" }}>
+                  {conflits.length} conflit{conflits.length > 1 ? "s" : ""} detecte{conflits.length > 1 ? "s" : ""}
+                </p>
+                <button
+                  onClick={() => setShowConflits(!showConflits)}
+                  style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: "#6B6A60", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                >
+                  {showConflits ? "Masquer" : "Details"}
+                </button>
+              </div>
+              <p style={{ margin: 0, fontSize: 11, color: "#6B6A60", lineHeight: 1.5 }}>
+                {conflits.some((c) => c.severite === "critique")
+                  ? "Un ou plusieurs arretes existants portent sur les memes voies pendant la meme periode."
+                  : "Des arretes existants concernent des voies proches pendant la meme periode."
+                }
+              </p>
+              {showConflits && (
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {conflits.map((c, i) => {
+                    const isCritique = c.severite === "critique";
+                    return (
+                      <div key={i} style={{
+                        background: isCritique ? "#FEE2E2" : "#FEF3C7",
+                        borderRadius: 6, padding: "10px 12px",
+                        borderLeft: `3px solid ${isCritique ? "#DC2626" : "#D97706"}`,
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                            padding: "1px 6px", borderRadius: 3,
+                            background: isCritique ? "#DC2626" : "#D97706",
+                            color: "#FFFFFF",
+                          }}>
+                            {isCritique ? "Critique" : "Attention"}
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "#1C1F1B" }}>
+                            {c.arrete.numero}
+                          </span>
+                        </div>
+                        <p style={{ margin: "0 0 3px", fontSize: 11, color: "#1C1F1B" }}>
+                          {c.arrete.titre}
+                        </p>
+                        <p style={{ margin: 0, fontSize: 10, color: "#6B6A60" }}>
+                          Voies : <strong>{c.voiesCommunes.join(", ")}</strong>
+                          {" · "}Chevauchement : {formaterChevauchement(c.chevauchement)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, background: "#FFFFFF", padding: 16, marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: 10, marginBottom: 10, borderBottom: "1px solid #E4E1D6" }}>
               <div><p style={{ fontSize: 10, color: "#6B6A60", margin: 0 }}>Numero</p><p className="fm" style={{ fontSize: 14, color: "#1E3A5F", margin: 0 }}>{arreteExistant ? arreteExistant.numero : genNum(typeArrete.suffixe, nextIdx)}</p></div>

@@ -19,3 +19,4 @@ export { NotificationsService } from "./notifications.service";
 export { AuditService } from "./audit.service";
 export type { AuditFilters, AuditExportFormat } from "./audit.service";
 export type { ReferencesFilters } from "./references.service";
+export { IntegrationsService } from "./integrations.service";

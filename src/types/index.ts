@@ -36,3 +36,26 @@ export type {
 export type { ActionAudit, EntreeAudit } from "./audit";
 
 export type { Utilisateur, ConfigTenant } from "./admin";
+
+export type {
+  CodeIntegration,
+  StatutIntegration,
+  StatutTransmission,
+  ConfigActesTdt,
+  ClassificationActe,
+  ConfigOpenData,
+  ConfigIParapheur,
+  ConfigICal,
+  ConfigWebhook,
+  WebhookEndpoint,
+  EvenementWebhook,
+  ConfigSmtp,
+  ConfigurationIntegration,
+  Integration,
+  HistoriqueTransmission,
+  WebhookPayload,
+  DonneesActes,
+  DonneesOpenData,
+  RessourceOpenData,
+  EvenementICal,
+} from "./integration";
