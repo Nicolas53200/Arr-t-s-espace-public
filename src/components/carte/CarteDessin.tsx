@@ -75,6 +75,23 @@ function midpointIcon() {
   });
 }
 
+function extendIcon() {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:20px;height:20px;border-radius:50%;background:rgba(37,99,235,0.1);border:2px dashed #2563EB;display:flex;align-items:center;justify-content:center;cursor:crosshair;"><span style="color:#2563EB;font-size:14px;font-weight:bold;line-height:1;">+</span></div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
+function extrapolatePoint(from: [number, number], to: [number, number], distance: number): [number, number] {
+  const dx = to[0] - from[0];
+  const dy = to[1] - from[1];
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return [to[0] + distance, to[1]];
+  return [to[0] + (dx / len) * distance, to[1] + (dy / len) * distance];
+}
+
 function MapFlyTo({ position, zoom }: { position: [number, number] | null; zoom?: number }) {
   const map = useMap();
   useEffect(() => {
@@ -89,15 +106,24 @@ function DrawHandler({
   setPoints,
   impact,
   onFinish,
+  extendingEnd,
+  onExtend,
 }: {
   mode: DrawMode;
   points: [number, number][];
   setPoints: (p: [number, number][]) => void;
   impact: CodeImpact;
   onFinish: (pts: [number, number][], type: "LineString" | "Polygon") => void;
+  extendingEnd?: "debut" | "fin" | null;
+  onExtend?: (lat: number, lng: number) => void;
 }) {
   useMapEvents({
     click(e) {
+      // Mode extension : ajouter des points au début ou à la fin du tracé
+      if (extendingEnd && onExtend) {
+        onExtend(e.latlng.lat, e.latlng.lng);
+        return;
+      }
       if (mode === "select") return;
       const pt: [number, number] = [e.latlng.lng, e.latlng.lat];
       setPoints([...points, pt]);
@@ -691,6 +717,7 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [deviationLoading, setDeviationLoading] = useState(false);
   const [deviationError, setDeviationError] = useState("");
+  const [extendingEnd, setExtendingEnd] = useState<"debut" | "fin" | null>(null);
   const [communeCentre, setCommuneCentre] = useState<[number, number] | null>(null);
 
   // Géocoder la commune pour centrer la carte si pas de centre_geo
@@ -715,6 +742,21 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
   }, [centre, communeNom]);
 
   const mapCentre = centre ?? communeCentre ?? [46.6, 2.2];
+
+  // Reset extending quand on change de tronçon en édition
+  useEffect(() => { setExtendingEnd(null); }, [editingIdx]);
+
+  const handleExtend = useCallback((lat: number, lng: number) => {
+    if (!onUpdateCoords || editingIdx === null || !extendingEnd) return;
+    const t = troncons[editingIdx];
+    if (!t?.coordonnees) return;
+    const newPt: [number, number] = [lng, lat];
+    if (extendingEnd === "fin") {
+      onUpdateCoords(editingIdx, [...t.coordonnees, newPt]);
+    } else {
+      onUpdateCoords(editingIdx, [newPt, ...t.coordonnees]);
+    }
+  }, [onUpdateCoords, editingIdx, extendingEnd, troncons]);
 
   function finishDraw(pts: [number, number][], geoType: "LineString" | "Polygon") {
     const t: Troncon = {
@@ -979,13 +1021,50 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
           </div>
         )}
 
+        {/* Extend mode controls */}
+        {extendingEnd && editingIdx !== null && (
+          <div style={{
+            display: "flex", gap: 8, alignItems: "center", marginBottom: 10,
+            padding: "8px 12px", background: "#D1FAE5", borderRadius: 7,
+            border: "1px solid #34D399", flexWrap: "wrap",
+          }}>
+            <span style={{ fontSize: 11, color: "#065F46", fontWeight: 500 }}>
+              {extendingEnd === "fin" ? "▶ Extension en fin de tracé" : "◀ Extension en début de tracé"} — Cliquez sur la carte pour ajouter des points
+            </span>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 5 }}>
+              <button
+                onClick={() => setExtendingEnd(extendingEnd === "fin" ? "debut" : "fin")}
+                style={{
+                  display: "flex", alignItems: "center", gap: 3,
+                  padding: "3px 8px", borderRadius: 4, fontSize: 10,
+                  background: "#FFFFFF", border: "1px solid #34D399",
+                  cursor: "pointer", color: "#065F46", fontFamily: "'IBM Plex Sans', sans-serif",
+                }}
+              >
+                {extendingEnd === "fin" ? "◀ Étendre le début" : "▶ Étendre la fin"}
+              </button>
+              <button
+                onClick={() => setExtendingEnd(null)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 3,
+                  padding: "3px 8px", borderRadius: 4, fontSize: 10,
+                  background: "#2F6B4F", border: "none",
+                  cursor: "pointer", color: "#fff", fontWeight: 600, fontFamily: "'IBM Plex Sans', sans-serif",
+                }}
+              >
+                <Check size={10} /> Terminer
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Map */}
         <div style={{ border: "1px solid #E4E1D6", borderRadius: 8, overflow: "hidden", height: 420 }}>
           <MapContainer
             key={`${mapCentre[0]}-${mapCentre[1]}`}
             center={mapCentre}
             zoom={16}
-            style={{ height: "100%", width: "100%", cursor: isDrawing ? "crosshair" : "grab" }}
+            style={{ height: "100%", width: "100%", cursor: isDrawing || extendingEnd ? "crosshair" : "grab" }}
             scrollWheelZoom={true}
             doubleClickZoom={false}
           >
@@ -1003,6 +1082,8 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
               setPoints={setDrawPoints}
               impact={currentImpact}
               onFinish={finishDraw}
+              extendingEnd={extendingEnd}
+              onExtend={handleExtend}
             />
 
             {/* Existing drawn shapes */}
@@ -1013,7 +1094,7 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
               const impLabel = TYPES_IMPACT.find((x) => x.code === t.impact)?.label;
               const isEditing = editingIdx === tIdx;
               const shapeEvents = {
-                click: () => { if (mode === "select" && onUpdateCoords) setEditingIdx(isEditing ? null : tIdx); },
+                click: () => { if (mode === "select" && onUpdateCoords && !extendingEnd) setEditingIdx(isEditing ? null : tIdx); },
               };
               if (t.geometrie_type === "Polygon") {
                 return (
@@ -1092,6 +1173,63 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
                       />
                     );
                   })}
+                  {/* Extension markers at endpoints for LineStrings */}
+                  {t.geometrie_type !== "Polygon" && editableCoords.length >= 2 && (() => {
+                    const first = editableCoords[0]!;
+                    const second = editableCoords[1]!;
+                    const last = editableCoords[editableCoords.length - 1]!;
+                    const beforeLast = editableCoords[editableCoords.length - 2]!;
+                    const extDist = 0.0003;
+                    const startExt = extrapolatePoint(second, first, extDist);
+                    const endExt = extrapolatePoint(beforeLast, last, extDist);
+                    return (
+                      <>
+                        <Marker
+                          key="ext-start"
+                          position={[startExt[1], startExt[0]]}
+                          icon={extendIcon()}
+                          eventHandlers={{
+                            click: () => {
+                              if (extendingEnd === "debut") {
+                                // Déjà en mode extension début → ajouter un point ici
+                                handleExtend(startExt[1], startExt[0]);
+                              } else {
+                                setExtendingEnd("debut");
+                              }
+                            },
+                          }}
+                        >
+                          <Popup><div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 11 }}>
+                            <strong>Étendre le début</strong>
+                            <br /><span style={{ fontSize: 10, color: "#6B6A60" }}>
+                              {extendingEnd === "debut" ? "Cliquez sur la carte pour ajouter des points" : "Cliquez pour activer l'extension"}
+                            </span>
+                          </div></Popup>
+                        </Marker>
+                        <Marker
+                          key="ext-end"
+                          position={[endExt[1], endExt[0]]}
+                          icon={extendIcon()}
+                          eventHandlers={{
+                            click: () => {
+                              if (extendingEnd === "fin") {
+                                handleExtend(endExt[1], endExt[0]);
+                              } else {
+                                setExtendingEnd("fin");
+                              }
+                            },
+                          }}
+                        >
+                          <Popup><div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 11 }}>
+                            <strong>Étendre la fin</strong>
+                            <br /><span style={{ fontSize: 10, color: "#6B6A60" }}>
+                              {extendingEnd === "fin" ? "Cliquez sur la carte pour ajouter des points" : "Cliquez pour activer l'extension"}
+                            </span>
+                          </div></Popup>
+                        </Marker>
+                      </>
+                    );
+                  })()}
                 </>
               );
             })()}
@@ -1190,13 +1328,44 @@ export default function CarteDessin({ troncons, onAdd, onRemove, onUpdateImpact,
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                     <span style={{ fontSize: 9, color: "#6B6A60", display: "flex", alignItems: "center", gap: 3 }}>
                       {t.geometrie_type === "Polygon" ? <Pentagon size={9} /> : <Pencil size={9} />}
-                      {t.geometrie_type === "Polygon" ? "Zone" : "Trace"} · {(t.coordonnees?.length ?? 0) - (t.geometrie_type === "Polygon" ? 1 : 0)} pts
+                      {t.geometrie_type === "Polygon" ? "Zone" : "Tracé"} · {(t.coordonnees?.length ?? 0) - (t.geometrie_type === "Polygon" ? 1 : 0)} pts
                     </span>
                     {t.origine === "auto" && (
                       <span style={{ fontSize: 8, padding: "1px 4px", borderRadius: 3, background: "#D1FAE5", color: "#2F6B4F", fontWeight: 600 }}>
                         AUTO
                       </span>
                     )}
+                  </div>
+                )}
+                {/* Boutons Étendre quand en mode édition d'un LineString */}
+                {editingIdx === idx && t.geometrie_type !== "Polygon" && isGeo && onUpdateCoords && (
+                  <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                    <button
+                      onClick={() => setExtendingEnd(extendingEnd === "debut" ? null : "debut")}
+                      style={{
+                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 3,
+                        padding: "4px 6px", borderRadius: 4, fontSize: 9, fontWeight: 600,
+                        background: extendingEnd === "debut" ? "#059669" : "#F0FDF4",
+                        color: extendingEnd === "debut" ? "#fff" : "#065F46",
+                        border: `1px solid ${extendingEnd === "debut" ? "#059669" : "#34D399"}`,
+                        cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
+                      }}
+                    >
+                      ◀ {extendingEnd === "debut" ? "Extension active" : "Étendre début"}
+                    </button>
+                    <button
+                      onClick={() => setExtendingEnd(extendingEnd === "fin" ? null : "fin")}
+                      style={{
+                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 3,
+                        padding: "4px 6px", borderRadius: 4, fontSize: 9, fontWeight: 600,
+                        background: extendingEnd === "fin" ? "#059669" : "#F0FDF4",
+                        color: extendingEnd === "fin" ? "#fff" : "#065F46",
+                        border: `1px solid ${extendingEnd === "fin" ? "#059669" : "#34D399"}`,
+                        cursor: "pointer", fontFamily: "'IBM Plex Sans', sans-serif",
+                      }}
+                    >
+                      Étendre fin ▶{extendingEnd === "fin" ? " ✓" : ""}
+                    </button>
                   </div>
                 )}
                 <select
